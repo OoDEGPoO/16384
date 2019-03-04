@@ -32,10 +32,10 @@ void imprimeMatriz(int *v, int m, int n) {//( m * n )
 	int i, j, x;
 	int ws;//numero de espacios de caracteres por casilla
 	printf("\n");
-	for (i = 0; i < m; i++) {
-		for (j = 0; j < n; j++) {
+	for (i = 0; i < m; i++) {//recorremos eje m
+		for (j = 0; j < n; j++) {//recorremos eje n
 			ws = WS;
-			x = v[i*m + j];
+			x = v[i*n + j];
 
 			//No se consideran numeros negativos, y el límite son 6 dígitos (que no se alcanzan)
 
@@ -44,7 +44,7 @@ void imprimeMatriz(int *v, int m, int n) {//( m * n )
 				x = x / 10;
 			} while (x > 0);
 
-			printf("%d", v[i*m + j]);//imprimimos el numero
+			printf("%d", v[i*n + j]);//imprimimos el numero
 			while (ws > 0) {//y ocupamos el resto de huecos con espacios en blanco
 				printf(" ");
 				ws--;
@@ -52,6 +52,36 @@ void imprimeMatriz(int *v, int m, int n) {//( m * n )
 		}
 		printf("\n");
 	}
+}
+
+//	Introduce en la matriz de juego un nuevo numero
+//	-	*m matriz de Juego, WidthM y WidthN dimensiones de columna y fila
+//	-	x e y, coordenadas donde se intenta introducir el elemento "set", si ya hay un elemento (!= 0), no se introduce y devuelve false
+bool introNum(int *m, int WidthM, int WidthN, int x, int y, int set) {
+	//comprobación de que esté dentro
+	if (x < WidthN && y < WidthM) {
+
+		if (m[y*WidthN + x] == 0) {
+			m[y*WidthN + x] = set;
+			return true;
+		}
+
+	}
+	
+	return false;
+}
+
+bool checkMatrizBool(bool *b, int m, int n) {
+	bool out = false;
+	int i, j;
+
+	for (i = 0; i < m; i++) {
+		for (j = 0; j < n; j++) {
+			out = out || b[i*n + j];
+		}
+	}
+
+	return out;
 }
 
 //-------------------------------------------------------------------------------------------------
@@ -62,6 +92,7 @@ void imprimeMatriz(int *v, int m, int n) {//( m * n )
 //	-	*m Matriz en forma vectorial con la que se trabaja, WidthM y WidthN su tamaño de columna y fila
 //	-	x e y, las coordenadas del elemento que se iniciará al menor entero positivo válido
 __global__ void Inicializador(int *m, int WidthM, int WidthN, int x, int y) {
+	//obtención id del hilo
 	int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
@@ -74,9 +105,32 @@ __global__ void Inicializador(int *m, int WidthM, int WidthN, int x, int y) {
 	}
 }
 
-//	Ejecución de Movimiento
-__global__ void ExMov(int *m, int WidthM, int WidthN) {
+//	Inicializador de matrices booleanas
+//	-	*b Matriz vectorial de booleanos, WidthM y WidthN dimensiones de columna y fila
+//	-	set el valor booleano a introducir
+__global__ void iniBool(bool *b, int WidthM, int WidthN, bool set) {
+	//obtención id del hilo
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
+	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
+	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+
+	if (id_fil < WidthM && id_col < WidthN) {//Comprobación de que el hilo esté dentro de los límites
+
+		b[id_fil*WidthN + id_col] = set;//damos al elemento correspondiente el valor indicado
+
+	}
+}
+
+//	Ejecución de Movimiento
+__global__ void ExMov(int *m, bool *b, int WidthM, int WidthN) {
+	//obtención id del hilo
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idTx = threadIdx.x;	int idTy = threadIdx.y;
+
+	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
+	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
 }
 
 //-------------------------------------------------------------------------------------------------
