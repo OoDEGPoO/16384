@@ -12,9 +12,11 @@
 #include "device_launch_parameters.h"
 
 #include <stdio.h>
+#include <iostream>
+#include <cstdlib>
 
 const int WS = 6;
-int TILE_WIDTH = 0;
+const int TILE_WIDTH = 0;
 
 //	Ejemplo de como quedaría la matriz
 
@@ -27,6 +29,23 @@ int TILE_WIDTH = 0;
 //N es el eje X
 
 //------------------------------------------- Host ------------------------------------------------
+
+void mostrarMenu() {
+
+	printf(".----------------.  .----------------.  .----------------.  .----------------.  .----------------.\n");
+	printf("| .--------------. || .--------------. || .--------------. || .--------------. || .--------------. |\n");
+	printf("| |     __       | || |    ______    | || |    ______    | || |     ____     | || |   _    _     | |\n");
+	printf("| |    /  |      | || |  .' ____ \   | || |   / ____ `.  | || |   .' __ '.   | || |  | |  | |    | |\n");
+	printf("| |    `| |      | || |  | |____\_|  | || |   `'  __) |  | || |   | (__) |   | || |  | |__| |_   | |\n");
+	printf("| |     | |      | || |  | '____`'.  | || |   _ | __ '.  | || |   .`____'.   | || |  |____   _|  | |\n");
+	printf("| |    _| |_     | || |  | (____) |  | || |  | \____) |  | || |  | (____) |  | || |      _| |_   | |\n");
+	printf("| |   |_____|    | || |  '.______.'  | || |   \______.'  | || |  `.______.'  | || |     |_____|  | |\n");
+	printf("| |              | || |              | || |              | || |              | || |              | |\n");
+	printf("| '--------------' || '--------------' || '--------------' || '--------------' || '--------------' |\n");
+	printf("'----------------'  '----------------'  '----------------'  '----------------'  '----------------' \n\n");
+	printf("                       Created by: Diego-Edgar Gracia & Daniel Lopez                                \n");
+
+}
 
 void imprimeMatriz(int *v, int m, int n) {//( m * n )
 	int i, j, x;
@@ -43,7 +62,7 @@ void imprimeMatriz(int *v, int m, int n) {//( m * n )
 				ws--;
 				x = x / 10;
 			} while (x > 0);
-
+			
 			printf("%d", v[i*n + j]);//imprimimos el numero
 			while (ws > 0) {//y ocupamos el resto de huecos con espacios en blanco
 				printf(" ");
@@ -533,7 +552,7 @@ int main()
         return 1;
     }
 
-    printf("{1,2,3,4,5} + {10,20,30,40,50} = {%d,%d,%d,%d,%d}\n",
+	printf("{1,2,3,4,5} + {10,20,30,40,50} ={%d, %d, %d, %d, %d}\n",
         c[0], c[1], c[2], c[3], c[4]);
 
     // cudaDeviceReset must be called before exiting in order for profiling and
