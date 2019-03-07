@@ -12,7 +12,10 @@
 #include "device_launch_parameters.h"
 
 #include <stdio.h>
+#include <conio.h>
+#include <stdlib.h>
 #include <Windows.h>
+
 
 const int WS = 6;
 const int TILE_WIDTH = 0;
@@ -29,35 +32,51 @@ const int TILE_WIDTH = 0;
 
 //------------------------------------------- Host ------------------------------------------------
 
-/*int main() {
-	switch () {
+int main() {
+
+	int teclaPulsada;
+
+	//Mostramos el menú inicial y procedemos a jugar
+	mostrarMenuInicial();
+
+	teclaPulsada = reconocerTeclado();
+	switch (teclaPulsada) {
 
 		//Menu de Pausa
 		case 0:
-
+			mostrarMenuPausa();
+			accionPausa();
 			break;
 
 		//Arriba
 		case 1:
+			accionArriba();
 			break;
 
 		//Izquierda
 		case 2:
+			accionIzquierda();
 			break;
 
 		//Derecha
 		case 3:
+			accionDerecha();
 			break;
 
 		//Abajo
 		case 4:
+			accionAbajo();
 			break;
+
+		//Defecto
 		default:
 			break;
 	}
-}*/
+}
 
-void mostrarMenu() {
+
+//Mostramos una introduccion
+void mostrarMenuInicial() {
 
 	printf(".----------------.  .----------------.  .----------------.  .----------------.  .----------------.\n");
 	printf("| .--------------. || .--------------. || .--------------. || .--------------. || .--------------. |\n");
@@ -70,8 +89,68 @@ void mostrarMenu() {
 	printf("| |              | || |              | || |              | || |              | || |              | |\n");
 	printf("| '--------------' || '--------------' || '--------------' || '--------------' || '--------------' |\n");
 	printf("'----------------'  '----------------'  '----------------'  '----------------'  '----------------' \n\n");
-	printf("                       Created by: Diego-Edgar Gracia & Daniel Lopez                                \n");
+	printf("                       Created by: Diego-Edgar Gracia & Daniel Lopez                                \n\n");
+	printf("                                                                                                      ");
 
+}
+
+//Mostramos las opciones de pausa
+void mostrarMenuPausa() {
+	printf("                        PAUSA             \n\n");
+	printf("Selecciona una opcion:\n");
+	printf("\t R - Reanudar \n");
+	printf("\t G - Guardar progreso y salir \n");
+	printf("\t S - Salir sin guardar \n");
+}
+
+//Ejecutamos una accion en funcion de la tecla pulsada
+void accionPausa() {
+	int tecla;
+
+	tecla = reconocerTeclado();
+
+	switch (tecla) {
+		//Salir sin guardar
+		case 4:
+			accionSalir();
+			break;
+		//Reanudar
+		case 5:
+			accionReanudar();
+			break;
+		//Guardar y salir
+		case 6:
+			accionGuardarSalir();
+			break;
+	}
+
+}
+
+//Leemos de teclado y devolvemos un numero de salida en funcion de la tecla pulsada
+int reconocerTeclado() {
+	char tecla;
+	int salida;
+
+	tecla = getch();
+
+	if (tecla == 7) salida = 0;
+	if (tecla == 'w' || tecla == 'W') salida = 1;
+	if (tecla == 'a' || tecla == 'A') salida = 2;
+	if (tecla == 'd' || tecla == 'D') salida = 3;
+	if (tecla == 's' || tecla == 'S') salida = 4;
+
+	if (tecla == 'r' || tecla == 'R') salida = 5;
+	if (tecla == 'g' || tecla == 'G') salida = 6;
+
+	if (tecla == -32) {
+		tecla = getch();
+		if (tecla == 72) salida = 1;
+		if (tecla == 75) salida = 2;
+		if (tecla == 77) salida = 3;
+		if (tecla == 80) salida = 4;
+	}
+
+	return salida;
 }
 
 enum Colores {
@@ -100,6 +179,41 @@ void Color(int Background, int Text) {
 	int New_Color = Text + (Background * 16);
 	//Aplicamos el color a la consola
 	SetConsoleTextAttribute(Console, New_Color);
+
+}
+
+//Realizamos los movimientos y las sumas hacia arriba
+void accionArriba() {
+
+}
+
+//Realizamos los movimientos y las sumas hacia la izquierda
+void accionIzquierda() {
+
+}
+
+//Realizamos los movimientos y las sumas hacia la derecha
+void accionDerecha() {
+
+}
+
+//Realizamos los movimientos y las sumas hacia abajo
+void accionAbajo() {
+
+}
+
+//Salimos del juego sin guardar partida
+void accionSalir() {
+
+}
+
+//Volvemos al juego
+void accionReanudar() {
+
+}
+
+//Guardamos el progreso y salimos
+void accionGuardarSalir() {
 
 }
 
