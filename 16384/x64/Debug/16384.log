@@ -4,14 +4,14 @@
   Compiling CUDA source file kernel.cu...
   
   C:\Users\Danil\Desktop\Repositorios GitHub\APAPecl1\16384>"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.0\bin\nvcc.exe" -gencode=arch=compute_35,code=\"sm_35,compute_35\" --use-local-env -ccbin "C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\VC\Tools\MSVC\14.16.27023\bin\HostX86\x64" -x cu  -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.0\include" -I"C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v10.0\include"  -G   --keep-dir x64\Debug -maxrregcount=0  --machine 64 --compile -cudart static  -g   -DWIN32 -DWIN64 -D_DEBUG -D_CONSOLE -D_MBCS -Xcompiler "/EHsc /W3 /nologo /Od /Fdx64\Debug\vc141.pdb /FS /Zi /RTC1 /MDd " -o x64\Debug\kernel.cu.obj "C:\Users\Danil\Desktop\Repositorios GitHub\APAPecl1\16384\kernel.cu" 
-C:/Users/Danil/Desktop/Repositorios GitHub/APAPecl1/16384/kernel.cu(38): warning : unrecognized character escape sequence
-C:/Users/Danil/Desktop/Repositorios GitHub/APAPecl1/16384/kernel.cu(39): warning : unrecognized character escape sequence
-C:/Users/Danil/Desktop/Repositorios GitHub/APAPecl1/16384/kernel.cu(41): warning : unrecognized character escape sequence
-C:/Users/Danil/Desktop/Repositorios GitHub/APAPecl1/16384/kernel.cu(42): warning : unrecognized character escape sequence
-C:/Users/Danil/Desktop/Repositorios GitHub/APAPecl1/16384/kernel.cu(38): warning : unrecognized character escape sequence
-C:/Users/Danil/Desktop/Repositorios GitHub/APAPecl1/16384/kernel.cu(39): warning : unrecognized character escape sequence
-C:/Users/Danil/Desktop/Repositorios GitHub/APAPecl1/16384/kernel.cu(41): warning : unrecognized character escape sequence
-C:/Users/Danil/Desktop/Repositorios GitHub/APAPecl1/16384/kernel.cu(42): warning : unrecognized character escape sequence
+C:/Users/Danil/Desktop/Repositorios GitHub/APAPecl1/16384/kernel.cu(65): warning : unrecognized character escape sequence
+C:/Users/Danil/Desktop/Repositorios GitHub/APAPecl1/16384/kernel.cu(66): warning : unrecognized character escape sequence
+C:/Users/Danil/Desktop/Repositorios GitHub/APAPecl1/16384/kernel.cu(68): warning : unrecognized character escape sequence
+C:/Users/Danil/Desktop/Repositorios GitHub/APAPecl1/16384/kernel.cu(69): warning : unrecognized character escape sequence
+C:/Users/Danil/Desktop/Repositorios GitHub/APAPecl1/16384/kernel.cu(65): warning : unrecognized character escape sequence
+C:/Users/Danil/Desktop/Repositorios GitHub/APAPecl1/16384/kernel.cu(66): warning : unrecognized character escape sequence
+C:/Users/Danil/Desktop/Repositorios GitHub/APAPecl1/16384/kernel.cu(68): warning : unrecognized character escape sequence
+C:/Users/Danil/Desktop/Repositorios GitHub/APAPecl1/16384/kernel.cu(69): warning : unrecognized character escape sequence
   kernel.cu
      Creando biblioteca C:\Users\Danil\Desktop\Repositorios GitHub\APAPecl1\16384\x64\Debug\16384.lib y objeto C:\Users\Danil\Desktop\Repositorios GitHub\APAPecl1\16384\x64\Debug\16384.exp
   16384.vcxproj -> C:\Users\Danil\Desktop\Repositorios GitHub\APAPecl1\16384\x64\Debug\16384.exe

@@ -12,8 +12,7 @@
 #include "device_launch_parameters.h"
 
 #include <stdio.h>
-#include <iostream>
-#include <cstdlib>
+#include <Windows.h>
 
 const int WS = 6;
 const int TILE_WIDTH = 0;
@@ -30,6 +29,34 @@ const int TILE_WIDTH = 0;
 
 //------------------------------------------- Host ------------------------------------------------
 
+/*int main() {
+	switch () {
+
+		//Menu de Pausa
+		case 0:
+
+			break;
+
+		//Arriba
+		case 1:
+			break;
+
+		//Izquierda
+		case 2:
+			break;
+
+		//Derecha
+		case 3:
+			break;
+
+		//Abajo
+		case 4:
+			break;
+		default:
+			break;
+	}
+}*/
+
 void mostrarMenu() {
 
 	printf(".----------------.  .----------------.  .----------------.  .----------------.  .----------------.\n");
@@ -44,6 +71,35 @@ void mostrarMenu() {
 	printf("| '--------------' || '--------------' || '--------------' || '--------------' || '--------------' |\n");
 	printf("'----------------'  '----------------'  '----------------'  '----------------'  '----------------' \n\n");
 	printf("                       Created by: Diego-Edgar Gracia & Daniel Lopez                                \n");
+
+}
+
+enum Colores {
+	BLACK = 0,
+	BLUE = 1,
+	GREEN = 2,
+	CYAN = 3,
+	RED = 4,
+	MAGENTA = 5,
+	BROWN = 6,
+	LGREY = 7,
+	DGREY = 8,
+	LBLUE = 9,
+	LGREEN = 10,
+	LCYAN = 11,
+	LRED = 12,
+	LMAGENTA = 13,
+	YELLOW = 14,
+	WHITE = 15
+};
+
+void Color(int Background, int Text) {
+
+	HANDLE Console = GetStdHandle(STD_OUTPUT_HANDLE);
+	//Cálculo para convertir los colores al valor necesario
+	int New_Color = Text + (Background * 16);
+	//Aplicamos el color a la consola
+	SetConsoleTextAttribute(Console, New_Color);
 
 }
 
@@ -63,6 +119,57 @@ void imprimeMatriz(int *v, int m, int n) {//( m * n )
 				x = x / 10;
 			} while (x > 0);
 			
+			switch (v[i*n+j]) {
+				case 0:
+					Color(BLACK,BLACK);
+					break;
+				case 2:
+					Color(WHITE,BLACK);
+					break;
+				case 4:
+					Color(YELLOW, BLACK);
+					break;
+				case 8:
+					Color(LMAGENTA, BLACK);
+					break;
+				case 16:
+					Color(MAGENTA, BLACK);
+					break;
+				case 32:
+					Color(BROWN, BLACK);
+					break;
+				case 64:
+					Color(RED, BLACK);
+					break;
+				case 128:
+					Color(LBLUE, BLACK);
+					break;
+				case 256:
+					Color(BLUE, BLACK);
+					break;
+				case 512:
+					Color(LGREEN, BLACK);
+					break;
+				case 1024:
+					Color(GREEN, BLACK);
+					break;
+				case 2048:
+					Color(LGREY, BLACK);
+					break;
+				case 4096:
+					Color(DGREY, BLACK);
+					break;
+				case 8192:
+					Color(CYAN, BLACK);
+					break;
+				case 16384:
+					Color(WHITE, BLACK);
+					break;
+				default:
+					Color(BLACK,WHITE);
+					break;
+			}
+
 			printf("%d", v[i*n + j]);//imprimimos el numero
 			while (ws > 0) {//y ocupamos el resto de huecos con espacios en blanco
 				printf(" ");
@@ -70,6 +177,7 @@ void imprimeMatriz(int *v, int m, int n) {//( m * n )
 			}
 		}
 		printf("\n");
+		Color(BLACK,WHITE);
 	}
 }
 
@@ -540,6 +648,25 @@ __global__ void addKernel(int *c, const int *a, const int *b)
 
 int main()
 {
+	int Width = 5;
+	int M[5*5];
+
+	for (int i = 0; i < 5; i++) {
+		for (int j = 0; j < 5; j++) {
+			M[i * 5 + j] = rand() % 10;
+		}
+	}
+	for (int i = 0; i < 5; i++) {
+		for (int j = 0; j < 5; j++) {
+			printf("%d", M[i * 5 + j]);
+			printf("\t");
+		}
+		printf("\n");
+	}
+	printf("colorines");
+
+	imprimeMatriz(M,Width,Width);
+
     const int arraySize = 5;
     const int a[arraySize] = { 1, 2, 3, 4, 5 };
     const int b[arraySize] = { 10, 20, 30, 40, 50 };
