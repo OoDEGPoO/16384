@@ -172,6 +172,9 @@ void imprimeMatriz(int *v, int m, int n) {//( m * n )
 
 			printf("%d", v[i*n + j]);//imprimimos el numero
 			while (ws > 0) {//y ocupamos el resto de huecos con espacios en blanco
+				if (ws == 1) {
+					Color(BLACK,WHITE);
+				}
 				printf(" ");
 				ws--;
 			}
