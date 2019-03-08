@@ -16,9 +16,14 @@
 #include <stdlib.h>
 #include <Windows.h>
 
+#include <fstream>
+#include <iostream>
+#include <string>
+using namespace std;
 
 const int WS = 6;
 const int TILE_WIDTH = 0;
+char FICHERO[] = "16384.sav";
 
 //	Ejemplo de como quedaría la matriz
 
@@ -31,6 +36,351 @@ const int TILE_WIDTH = 0;
 //N es el eje X
 
 //------------------------------------------- Host ------------------------------------------------
+
+enum Colores {
+	BLACK = 0,
+	BLUE = 1,
+	GREEN = 2,
+	CYAN = 3,
+	RED = 4,
+	MAGENTA = 5,
+	BROWN = 6,
+	LGREY = 7,
+	DGREY = 8,
+	LBLUE = 9,
+	LGREEN = 10,
+	LCYAN = 11,
+	LRED = 12,
+	LMAGENTA = 13,
+	YELLOW = 14,
+	WHITE = 15
+};
+
+void Color(int Background, int Text) {
+
+	HANDLE Console = GetStdHandle(STD_OUTPUT_HANDLE);
+	//Cálculo para convertir los colores al valor necesario
+	int New_Color = Text + (Background * 16);
+	//Aplicamos el color a la consola
+	SetConsoleTextAttribute(Console, New_Color);
+
+}
+
+//	Carga los datos del Juego Guardados anteriormente
+//	-	v Matriz de Juego, WidthM y WidthN el tamaó de la matriz de juego,
+//	-	puntuacion de juego acumulada y s el nombre del archivo de guardado
+bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, char *s) {
+	string linea; //buffer de entrada
+	char *c; //cadena de char para transformación
+	char *token; //tokens de la matriz
+	int k; //contador de acceso a la matriz
+	ifstream entrada(s); //Fichero de entrada
+	bool out = entrada.is_open();
+
+	if (out) {
+		if (getline(entrada, linea, ';')) {
+			c = (char*)malloc(linea.size() * sizeof(char));
+			strcpy(c, linea.c_str());
+			token = strtok(c, " ,");
+			k = 0;
+
+			while (token != NULL) {
+				v[k] = atoi(token);
+				k++;
+				token = strtok(NULL, " ,");
+			}
+		}
+
+		if (getline(entrada, linea, ';')) {
+			c = (char*)malloc(linea.size() * sizeof(char));
+			strcpy(c, linea.c_str());
+			*WidthM = atoi(c);
+		}
+
+		if (getline(entrada, linea, ';')) {
+			c = (char*)malloc(linea.size() * sizeof(char));
+			strcpy(c, linea.c_str());
+			*WidthN = atoi(c);
+		}
+
+		if (getline(entrada, linea, ';')) {
+			c = (char*)malloc(linea.size() * sizeof(char));
+			strcpy(c, linea.c_str());
+			*puntuacion = atoi(c);
+		}
+
+		entrada.close();
+	}
+	else fprintf(stderr, "Fallo al intentar abrir el archivo de guardado\n");
+
+	return out;
+}
+
+//	Guarda los datos de juego en el archivo de guardado indicado
+//	-	v matriz de juego, WidthM y WidthN dimensiones de la matriz de juego,
+//	-	puntuación de la partida y nombre del archivo destino
+void guardaDatos(int *v, int WidthM, int WidthN, int puntuacion, char *s) {
+	ofstream salida;
+	int Width = WidthM * WidthN;
+	salida.open(s);
+	if (salida.is_open()) {
+		for (int i = 0; i < Width; i++) {
+			salida << v[i];
+			if (i < Width - 1) salida << ",";
+		}
+		salida << ";" << WidthM << ";" << WidthN << ";" << puntuacion << ";";
+
+		salida.close();
+	}
+}
+
+//Leemos de teclado y devolvemos un numero de salida en funcion de la tecla pulsada
+int reconocerTeclado() {
+	char tecla;
+	int salida;
+
+	tecla = getch();
+
+	if (tecla == 7) salida = 0;
+	if (tecla == 'w' || tecla == 'W') salida = 1;
+	if (tecla == 'a' || tecla == 'A') salida = 2;
+	if (tecla == 'd' || tecla == 'D') salida = 3;
+	if (tecla == 's' || tecla == 'S') salida = 4;
+
+	if (tecla == 'r' || tecla == 'R') salida = 5;
+	if (tecla == 'g' || tecla == 'G') salida = 6;
+
+	if (tecla == -32) {
+		tecla = getch();
+		if (tecla == 72) salida = 1;
+		if (tecla == 75) salida = 2;
+		if (tecla == 77) salida = 3;
+		if (tecla == 80) salida = 4;
+	}
+
+	return salida;
+}
+
+//Mostramos una introduccion
+void mostrarMenuInicial() {
+
+	printf(".----------------.  .----------------.  .----------------.  .----------------.  .----------------.\n");
+	printf("| .--------------. || .--------------. || .--------------. || .--------------. || .--------------. |\n");
+	printf("| |     __       | || |    ______    | || |    ______    | || |     ____     | || |   _    _     | |\n");
+	printf("| |    /  |      | || |  .' ____ \   | || |   / ____ `.  | || |   .' __ '.   | || |  | |  | |    | |\n");
+	printf("| |    `| |      | || |  | |____\_|  | || |   `'  __) |  | || |   | (__) |   | || |  | |__| |_   | |\n");
+	printf("| |     | |      | || |  | '____`'.  | || |   _ | __ '.  | || |   .`____'.   | || |  |____   _|  | |\n");
+	printf("| |    _| |_     | || |  | (____) |  | || |  | \____) |  | || |  | (____) |  | || |      _| |_   | |\n");
+	printf("| |   |_____|    | || |  '.______.'  | || |   \______.'  | || |  `.______.'  | || |     |_____|  | |\n");
+	printf("| |              | || |              | || |              | || |              | || |              | |\n");
+	printf("| '--------------' || '--------------' || '--------------' || '--------------' || '--------------' |\n");
+	printf("'----------------'  '----------------'  '----------------'  '----------------'  '----------------' \n\n");
+	printf("                       Created by: Diego-Edgar Gracia & Daniel Lopez                                \n\n");
+	printf("                                                                                                      ");
+
+}
+
+//Mostramos las opciones de pausa
+void mostrarMenuPausa() {
+	printf("                        PAUSA             \n\n");
+	printf("Selecciona una opcion:\n");
+	printf("\t R - Reanudar \n");
+	printf("\t G - Guardar progreso y salir \n");
+	printf("\t S - Salir sin guardar \n");
+}
+
+void imprimeMatriz(int *v, int m, int n) {//( m * n )
+	int i, j, x;
+	int ws;//numero de espacios de caracteres por casilla
+	printf("\n");
+	for (i = 0; i < m; i++) {//recorremos eje m
+		for (j = 0; j < n; j++) {//recorremos eje n
+			ws = WS;
+			x = v[i*n + j];
+
+			//No se consideran numeros negativos, y el límite son 6 dígitos (que no se alcanzan)
+
+			do {//Se ocupa un hueco por digito del numero
+				ws--;
+				x = x / 10;
+			} while (x > 0);
+
+			switch (v[i*n + j]) {
+			case 0:
+				Color(BLACK, BLACK);
+				break;
+			case 2:
+				Color(WHITE, BLACK);
+				break;
+			case 4:
+				Color(YELLOW, BLACK);
+				break;
+			case 8:
+				Color(LMAGENTA, BLACK);
+				break;
+			case 16:
+				Color(MAGENTA, BLACK);
+				break;
+			case 32:
+				Color(BROWN, BLACK);
+				break;
+			case 64:
+				Color(RED, BLACK);
+				break;
+			case 128:
+				Color(LBLUE, BLACK);
+				break;
+			case 256:
+				Color(BLUE, BLACK);
+				break;
+			case 512:
+				Color(LGREEN, BLACK);
+				break;
+			case 1024:
+				Color(GREEN, BLACK);
+				break;
+			case 2048:
+				Color(LGREY, BLACK);
+				break;
+			case 4096:
+				Color(DGREY, BLACK);
+				break;
+			case 8192:
+				Color(CYAN, BLACK);
+				break;
+			case 16384:
+				Color(WHITE, BLACK);
+				break;
+			default:
+				Color(BLACK, WHITE);
+				break;
+			}
+
+			printf("%d", v[i*n + j]);//imprimimos el numero
+			while (ws > 0) {//y ocupamos el resto de huecos con espacios en blanco
+				if (ws == 1) {
+					Color(BLACK, WHITE);
+				}
+				printf(" ");
+				ws--;
+			}
+		}
+		printf("\n");
+		Color(BLACK, WHITE);
+	}
+}
+
+//Solo para pruebas
+/*
+void imprimeBooleanos(bool *v, int m, int n) {//( m * n )
+int i, j;
+bool x;
+int ws;//numero de espacios de caracteres por casilla
+printf("\n");
+for (i = 0; i < m; i++) {//recorremos eje m
+for (j = 0; j < n; j++) {//recorremos eje n
+ws = WS;
+x = v[i*n + j];
+
+if (v[i*n + j]) { printf("True"); ws = ws - 4; }
+else { printf("False"); ws = ws - 5; }
+
+while (ws > 0) {//y ocupamos el resto de huecos con espacios en blanco
+printf(" ");
+ws--;
+}
+}
+printf("\n");
+}
+}*/
+
+//	Introduce en la matriz de juego un nuevo numero
+//	-	*m matriz de Juego, WidthM y WidthN dimensiones de columna y fila
+//	-	x e y, coordenadas donde se intenta introducir el elemento "set", si ya hay un elemento (!= 0), no se introduce y devuelve false
+bool introNum(int *m, int WidthM, int WidthN, int x, int y, int set) {
+	//comprobación de que esté dentro
+	if (x < WidthN && y < WidthM) {
+
+		if (m[y*WidthN + x] == 0) {
+			m[y*WidthN + x] = set;
+			return true;
+		}
+
+	}
+
+	return false;
+}
+
+bool checkMatrizBool(bool *b, int m, int n) {
+	bool out = false;
+	int i, j;
+
+	for (i = 0; i < m; i++) {
+		for (j = 0; j < n; j++) {
+			out = out || b[i*n + j];
+		}
+	}
+
+	return out;
+}
+
+//Ejecutamos una accion en funcion de la tecla pulsada
+void accionPausa() {
+	int tecla;
+
+	tecla = reconocerTeclado();
+
+	switch (tecla) {
+		//Salir sin guardar
+	case 4:
+		accionSalir();
+		break;
+		//Reanudar
+	case 5:
+		accionReanudar();
+		break;
+		//Guardar y salir
+	case 6:
+		accionGuardarSalir();
+		break;
+	}
+
+}
+
+//Realizamos los movimientos y las sumas hacia arriba
+void accionArriba() {
+
+}
+
+//Realizamos los movimientos y las sumas hacia la izquierda
+void accionIzquierda() {
+
+}
+
+//Realizamos los movimientos y las sumas hacia la derecha
+void accionDerecha() {
+
+}
+
+//Realizamos los movimientos y las sumas hacia abajo
+void accionAbajo() {
+
+}
+
+//Salimos del juego sin guardar partida
+void accionSalir() {
+
+}
+
+//Volvemos al juego
+void accionReanudar() {
+
+}
+
+//Guardamos el progreso y salimos
+void accionGuardarSalir() {
+
+}
 
 int main() {
 
@@ -74,283 +424,6 @@ int main() {
 	}
 }
 
-
-//Mostramos una introduccion
-void mostrarMenuInicial() {
-
-	printf(".----------------.  .----------------.  .----------------.  .----------------.  .----------------.\n");
-	printf("| .--------------. || .--------------. || .--------------. || .--------------. || .--------------. |\n");
-	printf("| |     __       | || |    ______    | || |    ______    | || |     ____     | || |   _    _     | |\n");
-	printf("| |    /  |      | || |  .' ____ \   | || |   / ____ `.  | || |   .' __ '.   | || |  | |  | |    | |\n");
-	printf("| |    `| |      | || |  | |____\_|  | || |   `'  __) |  | || |   | (__) |   | || |  | |__| |_   | |\n");
-	printf("| |     | |      | || |  | '____`'.  | || |   _ | __ '.  | || |   .`____'.   | || |  |____   _|  | |\n");
-	printf("| |    _| |_     | || |  | (____) |  | || |  | \____) |  | || |  | (____) |  | || |      _| |_   | |\n");
-	printf("| |   |_____|    | || |  '.______.'  | || |   \______.'  | || |  `.______.'  | || |     |_____|  | |\n");
-	printf("| |              | || |              | || |              | || |              | || |              | |\n");
-	printf("| '--------------' || '--------------' || '--------------' || '--------------' || '--------------' |\n");
-	printf("'----------------'  '----------------'  '----------------'  '----------------'  '----------------' \n\n");
-	printf("                       Created by: Diego-Edgar Gracia & Daniel Lopez                                \n\n");
-	printf("                                                                                                      ");
-
-}
-
-//Mostramos las opciones de pausa
-void mostrarMenuPausa() {
-	printf("                        PAUSA             \n\n");
-	printf("Selecciona una opcion:\n");
-	printf("\t R - Reanudar \n");
-	printf("\t G - Guardar progreso y salir \n");
-	printf("\t S - Salir sin guardar \n");
-}
-
-//Ejecutamos una accion en funcion de la tecla pulsada
-void accionPausa() {
-	int tecla;
-
-	tecla = reconocerTeclado();
-
-	switch (tecla) {
-		//Salir sin guardar
-		case 4:
-			accionSalir();
-			break;
-		//Reanudar
-		case 5:
-			accionReanudar();
-			break;
-		//Guardar y salir
-		case 6:
-			accionGuardarSalir();
-			break;
-	}
-
-}
-
-//Leemos de teclado y devolvemos un numero de salida en funcion de la tecla pulsada
-int reconocerTeclado() {
-	char tecla;
-	int salida;
-
-	tecla = getch();
-
-	if (tecla == 7) salida = 0;
-	if (tecla == 'w' || tecla == 'W') salida = 1;
-	if (tecla == 'a' || tecla == 'A') salida = 2;
-	if (tecla == 'd' || tecla == 'D') salida = 3;
-	if (tecla == 's' || tecla == 'S') salida = 4;
-
-	if (tecla == 'r' || tecla == 'R') salida = 5;
-	if (tecla == 'g' || tecla == 'G') salida = 6;
-
-	if (tecla == -32) {
-		tecla = getch();
-		if (tecla == 72) salida = 1;
-		if (tecla == 75) salida = 2;
-		if (tecla == 77) salida = 3;
-		if (tecla == 80) salida = 4;
-	}
-
-	return salida;
-}
-
-enum Colores {
-	BLACK = 0,
-	BLUE = 1,
-	GREEN = 2,
-	CYAN = 3,
-	RED = 4,
-	MAGENTA = 5,
-	BROWN = 6,
-	LGREY = 7,
-	DGREY = 8,
-	LBLUE = 9,
-	LGREEN = 10,
-	LCYAN = 11,
-	LRED = 12,
-	LMAGENTA = 13,
-	YELLOW = 14,
-	WHITE = 15
-};
-
-void Color(int Background, int Text) {
-
-	HANDLE Console = GetStdHandle(STD_OUTPUT_HANDLE);
-	//Cálculo para convertir los colores al valor necesario
-	int New_Color = Text + (Background * 16);
-	//Aplicamos el color a la consola
-	SetConsoleTextAttribute(Console, New_Color);
-
-}
-
-//Realizamos los movimientos y las sumas hacia arriba
-void accionArriba() {
-
-}
-
-//Realizamos los movimientos y las sumas hacia la izquierda
-void accionIzquierda() {
-
-}
-
-//Realizamos los movimientos y las sumas hacia la derecha
-void accionDerecha() {
-
-}
-
-//Realizamos los movimientos y las sumas hacia abajo
-void accionAbajo() {
-
-}
-
-//Salimos del juego sin guardar partida
-void accionSalir() {
-
-}
-
-//Volvemos al juego
-void accionReanudar() {
-
-}
-
-//Guardamos el progreso y salimos
-void accionGuardarSalir() {
-
-}
-
-void imprimeMatriz(int *v, int m, int n) {//( m * n )
-	int i, j, x;
-	int ws;//numero de espacios de caracteres por casilla
-	printf("\n");
-	for (i = 0; i < m; i++) {//recorremos eje m
-		for (j = 0; j < n; j++) {//recorremos eje n
-			ws = WS;
-			x = v[i*n + j];
-
-			//No se consideran numeros negativos, y el límite son 6 dígitos (que no se alcanzan)
-
-			do {//Se ocupa un hueco por digito del numero
-				ws--;
-				x = x / 10;
-			} while (x > 0);
-			
-			switch (v[i*n+j]) {
-				case 0:
-					Color(BLACK,BLACK);
-					break;
-				case 2:
-					Color(WHITE,BLACK);
-					break;
-				case 4:
-					Color(YELLOW, BLACK);
-					break;
-				case 8:
-					Color(LMAGENTA, BLACK);
-					break;
-				case 16:
-					Color(MAGENTA, BLACK);
-					break;
-				case 32:
-					Color(BROWN, BLACK);
-					break;
-				case 64:
-					Color(RED, BLACK);
-					break;
-				case 128:
-					Color(LBLUE, BLACK);
-					break;
-				case 256:
-					Color(BLUE, BLACK);
-					break;
-				case 512:
-					Color(LGREEN, BLACK);
-					break;
-				case 1024:
-					Color(GREEN, BLACK);
-					break;
-				case 2048:
-					Color(LGREY, BLACK);
-					break;
-				case 4096:
-					Color(DGREY, BLACK);
-					break;
-				case 8192:
-					Color(CYAN, BLACK);
-					break;
-				case 16384:
-					Color(WHITE, BLACK);
-					break;
-				default:
-					Color(BLACK,WHITE);
-					break;
-			}
-
-			printf("%d", v[i*n + j]);//imprimimos el numero
-			while (ws > 0) {//y ocupamos el resto de huecos con espacios en blanco
-				if (ws == 1) {
-					Color(BLACK,WHITE);
-				}
-				printf(" ");
-				ws--;
-			}
-		}
-		printf("\n");
-		Color(BLACK,WHITE);
-	}
-}
-
-//Solo para pruebas
-/*
-void imprimeBooleanos(bool *v, int m, int n) {//( m * n )
-	int i, j;
-	bool x;
-	int ws;//numero de espacios de caracteres por casilla
-	printf("\n");
-	for (i = 0; i < m; i++) {//recorremos eje m
-		for (j = 0; j < n; j++) {//recorremos eje n
-			ws = WS;
-			x = v[i*n + j];
-
-			if (v[i*n + j]) { printf("True"); ws = ws - 4; }
-			else { printf("False"); ws = ws - 5; }
-
-			while (ws > 0) {//y ocupamos el resto de huecos con espacios en blanco
-				printf(" ");
-				ws--;
-			}
-		}
-		printf("\n");
-	}
-}*/
-
-//	Introduce en la matriz de juego un nuevo numero
-//	-	*m matriz de Juego, WidthM y WidthN dimensiones de columna y fila
-//	-	x e y, coordenadas donde se intenta introducir el elemento "set", si ya hay un elemento (!= 0), no se introduce y devuelve false
-bool introNum(int *m, int WidthM, int WidthN, int x, int y, int set) {
-	//comprobación de que esté dentro
-	if (x < WidthN && y < WidthM) {
-
-		if (m[y*WidthN + x] == 0) {
-			m[y*WidthN + x] = set;
-			return true;
-		}
-
-	}
-	
-	return false;
-}
-
-bool checkMatrizBool(bool *b, int m, int n) {
-	bool out = false;
-	int i, j;
-
-	for (i = 0; i < m; i++) {
-		for (j = 0; j < n; j++) {
-			out = out || b[i*n + j];
-		}
-	}
-
-	return out;
-}
 
 //-------------------------------------------------------------------------------------------------
 
