@@ -35,9 +35,424 @@ char FICHERO[] = "16384.sav";
 //M es el eje Y
 //N es el eje X
 
+//------------------------------------------ Device -----------------------------------------------
+
+//	Inicializador de la matriz de juego
+//	-	*m Matriz en forma vectorial con la que se trabaja, WidthM y WidthN su tamaño de columna y fila
+//	-	x e y, las coordenadas del elemento que se iniciará al menor entero positivo válido
+__global__ void Inicializador(int *m, int WidthM, int WidthN, int x, int y) {
+	//obtención id del hilo
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idTx = threadIdx.x;	int idTy = threadIdx.y;
+
+	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
+	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+
+	if (id_fil < WidthM && id_col < WidthN) {//Comprobación de que el hilo esté dentro de los límites
+		if (x == id_col && y == id_fil) m[id_fil*WidthN + id_col] = 2;
+		else m[id_fil*WidthN + id_col] = 0;
+	}
+}
+
+//	Inicializador de matrices booleanas
+//	-	*b Matriz vectorial de booleanos, WidthM y WidthN dimensiones de columna y fila
+//	-	set el valor booleano a introducir
+__global__ void iniBool(bool *b, int WidthM, int WidthN, bool set) {
+	//obtención id del hilo
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idTx = threadIdx.x;	int idTy = threadIdx.y;
+
+	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
+	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+
+	if (id_fil < WidthM && id_col < WidthN) {//Comprobación de que el hilo esté dentro de los límites
+
+		b[id_fil*WidthN + id_col] = set;//damos al elemento correspondiente el valor indicado
+
+	}
+}
+
+//---------------------- Dch -------------------------
+
+//	Cada hilo busca una pareja para su elemento correspondiente, y si es viable, realiza la suma
+//	-	Cada hilo recorre la matriz hacia la derecha buscando fichas como la suya viables para la suma
+//	-	para ello, cuenta cuantas coincidencias hay, si el numero es congruente con 0 mod 2,
+//	-	no se realizará ninguna acción por parte del hilo, si es congruente con 1 mod 2,
+//	-	se multiplica por 2 el primer coincidente y se borra la ficha del hilo.
+//	-	Las coincidencias deben de ser inmediatas, solo permitiendose el 0 entre las fichas (0 == vacio)
+//	-	-	La puntuación se recoge en la matriz p
+__global__ void SumaDch(int *m, int *p, int WidthM, int WidthN) {
+	//obtención id del hilo
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idTx = threadIdx.x;	int idTy = threadIdx.y;
+
+	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
+	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+
+	int ficha, c = 0, aux, i;
+
+	//filtro de hilos
+	if (id_fil < WidthM && id_col < WidthN) {
+		ficha = m[id_fil*WidthN + id_col];
+
+		//si la ficha está vacia, el hilo no buscará
+		if (ficha != 0) {
+			//Se realiza la busqueda hacia la dch
+			for (i = id_col + 1; i < WidthN; i++) {
+				aux = m[id_fil*WidthN + i];
+
+				if (aux == ficha) c++;//contamos las coincidencias
+				else if (aux != 0) i = WidthN;//No podemos emparejar saltandonos fichas
+			}
+
+			//	Si el numero de coincidencias es congruente con 1 mod 2
+			//	se busca la primera coincidencia, se multiplica por 2 y se borra la ficha 
+			//	Si fuese congruente con 0 mod 2, no debe acceder al for
+			if ((c % 2) == 0) p[id_fil*WidthN + id_col] = 0;//	Si no opera, puntuación 0
+			for (i = id_col + 1; i < WidthN && (c % 2) == 1; i++) {
+				aux = m[id_fil*WidthN + i];
+				if (aux == ficha) {
+					m[id_fil*WidthN + i] = ficha * 2;
+					m[id_fil*WidthN + id_col] = 0;
+					p[id_fil*WidthN + id_col] = ficha * 2;//	Grabamos la puntuación obtenido con la suma
+					c--;//Para que el bucle for termine
+				}
+
+				//	(Aclaración) Si estamos entrando en este bucle for,
+				//		significa que se ha encontrado una pareja viable anteriormente
+				//		por lo que no se filtra si se opera con una ficha no válida
+			}
+		}
+		else p[id_fil*WidthN + id_col] = 0;
+	}
+}
+
+//	Ejecución de Movimiento a la Derecha de las piezas
+//	-	Cada hilo toma su ficha (si es distinta de 0) y busca espacios en blanco a su derecha
+//	-	Cuando no encuentra más huecos en la matriz, intercambia su ficha con la del último hueco hallado
+//	-	al ser 0, intercambia con una vacía, si no hubiese huecos a su derecha, la intercambia consigo mismo
+//	-	-	Esta función debe ser llamada hasta que no devuelva ningún cambio en la Matriz de Juego
+__global__ void exMovDch(int *m, bool *b, int WidthM, int WidthN) {
+	//obtención id del hilo
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idTx = threadIdx.x;	int idTy = threadIdx.y;
+
+	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
+	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+
+	int ficha, id_aux = id_col;
+
+	//filtro de hilos
+	if (id_fil < WidthM && id_col < WidthN) {
+		ficha = m[id_fil*WidthN + id_col];
+
+		if (ficha != 0) {//si es 0, no hay que hacer ningún movimiento
+			for (int i = id_col + 1; i < WidthN; i++) {
+				if (m[id_fil*WidthN + i] == 0) id_aux = i;//se va buscando huecos vacios
+				else i = WidthN;//hasta toparse con otra ficha, entonces paramos la búsqueda
+			}
+
+			//Intercambiamos las fichas, aunque no se haya encontrado ningún hueco
+			m[id_fil*WidthN + id_col] = m[id_fil*WidthN + id_aux];
+			m[id_fil*WidthN + id_aux] = ficha;
+		}
+
+		//	Si no hay ningún movimiento de ficha en el hilo, será false
+		//	de haberlo, será true
+		b[id_fil*WidthN + id_col] = id_col != id_aux;
+	}
+
+	//	El resultado de m deberá ser la matriz con las fichas que se pudieran mover a la derecha, movidas,
+	//	Y el de b todos los elementos a false, excepto los coincidentes con las fichas que se han podido mover
+}
+
+//---------------------- Izq -------------------------
+
+//	Cada hilo busca una pareja para su elemento correspondiente, y si es viable, realiza la suma
+//	-	Cada hilo recorre la matriz hacia la izquierda buscando fichas como la suya viables para la suma
+//	-	para ello, cuenta cuantas coincidencias hay, si el numero es congruente con 0 mod 2,
+//	-	no se realizará ninguna acción por parte del hilo, si es congruente con 1 mod 2,
+//	-	se multiplica por 2 el primer coincidente y se borra la ficha del hilo.
+//	-	Las coincidencias deben de ser inmediatas, solo permitiendose el 0 entre las fichas (0 == vacio)
+//	-	-	La puntuación se recoge en la matriz p
+__global__ void SumaIzq(int *m, int *p, int WidthM, int WidthN) {
+	//obtención id del hilo
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idTx = threadIdx.x;	int idTy = threadIdx.y;
+
+	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
+	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+
+	int ficha, c = 0, aux, i;
+
+	//filtro de hilos
+	if (id_fil < WidthM && id_col < WidthN) {
+		ficha = m[id_fil*WidthN + id_col];
+
+		//si la ficha está vacia, el hilo no buscará
+		if (ficha != 0) {
+			//Se realiza la busqueda hacia la izq
+			for (i = id_col - 1; i >= 0; i--) {
+				aux = m[id_fil*WidthN + i];
+
+				if (aux == ficha) c++;//contamos las coincidencias
+				else if (aux != 0) i = -1;//No podemos emparejar saltandonos fichas
+			}
+
+			//	Si el numero de coincidencias es congruente con 1 mod 2
+			//	se busca la primera coincidencia, se multiplica por 2 y se borra la ficha 
+			//	Si fuese congruente con 0 mod 2, no debe acceder al for
+			if ((c % 2) == 0) p[id_fil*WidthN + id_col] = 0;
+			for (i = id_col - 1; i <= 0 && (c % 2) == 1; i--) {
+				aux = m[id_fil*WidthN + i];
+				if (aux == ficha) {
+					m[id_fil*WidthN + i] = ficha * 2;
+					m[id_fil*WidthN + id_col] = 0;
+					p[id_fil*WidthN + id_col] = ficha * 2;//	Grabamos la puntuación obtenido con la suma
+					c--;//Para que el bucle for termine
+				}
+
+				//	(Aclaración) Si estamos entrando en este bucle for,
+				//		significa que se ha encontrado una pareja viable anteriormente
+				//		por lo que no se filtra si se opera con una ficha no válida
+			}
+		}
+		else p[id_fil*WidthN + id_col] = 0;
+	}
+}
+
+//	Ejecución de Movimiento a la Izquierda de las piezas
+//	-	Cada hilo toma su ficha (si es distinta de 0) y busca espacios en blanco a su izquierda
+//	-	Cuando no encuentra más huecos en la matriz, intercambia su ficha con la del último hueco hallado
+//	-	al ser 0, intercambia con una vacía, si no hubiese huecos a su izquierda, la intercambia consigo mismo
+//	-	-	Esta función debe ser llamada hasta que no devuelva ningún cambio en la Matriz de Juego
+__global__ void exMovIzq(int *m, bool *b, int WidthM, int WidthN) {
+	//obtención id del hilo
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idTx = threadIdx.x;	int idTy = threadIdx.y;
+
+	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
+	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+
+	int ficha, id_aux = id_col;
+
+	//filtro de hilos
+	if (id_fil < WidthM && id_col < WidthN) {
+		ficha = m[id_fil*WidthN + id_col];
+
+		if (ficha != 0) {//si es 0, no hay que hacer ningún movimiento
+			for (int i = id_col - 1; i >= 0; i--) {
+				if (m[id_fil*WidthN + i] == 0) id_aux = i;//se va buscando huecos vacios
+				else i = -1;//hasta toparse con otra ficha, entonces paramos la búsqueda
+			}
+
+			//Intercambiamos las fichas, aunque no se haya encontrado ningún hueco
+			m[id_fil*WidthN + id_col] = m[id_fil*WidthN + id_aux];
+			m[id_fil*WidthN + id_aux] = ficha;
+		}
+
+		//	Si no hay ningún movimiento de ficha en el hilo, será false
+		//	de haberlo, será true
+		b[id_fil*WidthN + id_col] = id_col != id_aux;
+	}
+
+	//	El resultado de m deberá ser la matriz con las fichas que se pudieran mover a la izquierda, movidas,
+	//	Y el de b todos los elementos a false, excepto los coincidentes con las fichas que se han podido mover
+}
+
+//---------------------- Arb -------------------------
+
+//	Cada hilo busca una pareja para su elemento correspondiente, y si es viable, realiza la suma
+//	-	Cada hilo recorre la matriz hacia arriba buscando fichas como la suya viables para la suma
+//	-	para ello, cuenta cuantas coincidencias hay, si el numero es congruente con 0 mod 2,
+//	-	no se realizará ninguna acción por parte del hilo, si es congruente con 1 mod 2,
+//	-	se multiplica por 2 el primer coincidente y se borra la ficha del hilo.
+//	-	Las coincidencias deben de ser inmediatas, solo permitiendose el 0 entre las fichas (0 == vacio)
+//	-	-	La puntuación se recoge en la matriz p
+__global__ void SumaArb(int *m, int *p, int WidthM, int WidthN) {
+	//obtención id del hilo
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idTx = threadIdx.x;	int idTy = threadIdx.y;
+
+	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
+	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+
+	int ficha, c = 0, aux, i;
+
+	//filtro de hilos
+	if (id_fil < WidthM && id_col < WidthN) {
+		ficha = m[id_fil*WidthN + id_col];
+
+		//si la ficha está vacia, el hilo no buscará
+		if (ficha != 0) {
+			//Se realiza la busqueda hacia arriba
+			for (i = id_fil - 1; i >= 0; i--) {
+				aux = m[i*WidthN + id_col];
+
+				if (aux == ficha) c++;//contamos las coincidencias
+				else if (aux != 0) i = -1;//No podemos emparejar saltandonos fichas
+			}
+
+			//	Si el numero de coincidencias es congruente con 1 mod 2
+			//	se busca la primera coincidencia, se multiplica por 2 y se borra la ficha 
+			//	Si fuese congruente con 0 mod 2, no debe acceder al for
+			if ((c % 2) == 0) p[id_fil*WidthN + id_col] = 0;
+			for (i = id_fil - 1; i <= 0 && (c % 2) == 1; i--) {
+				aux = m[i*WidthN + id_col];
+				if (aux == ficha) {
+					m[i*WidthN + id_col] = ficha * 2;
+					m[id_fil*WidthN + id_col] = 0;
+					p[id_fil*WidthN + id_col] = ficha * 2;//	Grabamos la puntuación obtenido con la suma
+					c--;//Para que el bucle for termine
+				}
+
+				//	(Aclaración) Si estamos entrando en este bucle for,
+				//		significa que se ha encontrado una pareja viable anteriormente
+				//		por lo que no se filtra si se opera con una ficha no válida
+			}
+		}
+		else p[id_fil*WidthN + id_col] = 0;
+	}
+}
+
+//	Ejecución de Movimiento hacia Arriba de las piezas
+//	-	Cada hilo toma su ficha (si es distinta de 0) y busca espacios en blanco por encima
+//	-	Cuando no encuentra más huecos en la matriz, intercambia su ficha con la del último hueco hallado
+//	-	al ser 0, intercambia con una vacía, si no hubiese huecos por encima, la intercambia consigo mismo
+//	-	-	Esta función debe ser llamada hasta que no devuelva ningún cambio en la Matriz de Juego
+__global__ void exMovArb(int *m, bool *b, int WidthM, int WidthN) {
+	//obtención id del hilo
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idTx = threadIdx.x;	int idTy = threadIdx.y;
+
+	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
+	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+
+	int ficha, id_aux = id_fil;
+
+	//filtro de hilos
+	if (id_fil < WidthM && id_col < WidthN) {
+		ficha = m[id_fil*WidthN + id_col];
+
+		if (ficha != 0) {//si es 0, no hay que hacer ningún movimiento
+			for (int i = id_fil - 1; i >= 0; i--) {
+				if (m[i*WidthN + id_col] == 0) id_aux = i;//se va buscando huecos vacios
+				else i = -1;//hasta toparse con otra ficha, entonces paramos la búsqueda
+			}
+
+			//Intercambiamos las fichas, aunque no se haya encontrado ningún hueco
+			m[id_fil*WidthN + id_col] = m[id_aux*WidthN + id_col];
+			m[id_aux*WidthN + id_col] = ficha;
+		}
+
+		//	Si no hay ningún movimiento de ficha en el hilo, será false
+		//	de haberlo, será true
+		b[id_fil*WidthN + id_col] = id_fil != id_aux;
+	}
+
+	//	El resultado de m deberá ser la matriz con las fichas que se pudieran mover hacia arriba, movidas,
+	//	Y el de b todos los elementos a false, excepto los coincidentes con las fichas que se han podido mover
+}
+
+//---------------------- Abj -------------------------
+
+//	Cada hilo busca una pareja para su elemento correspondiente, y si es viable, realiza la suma
+//	-	Cada hilo recorre la matriz hacia abajo buscando fichas como la suya viables para la suma
+//	-	para ello, cuenta cuantas coincidencias hay, si el numero es congruente con 0 mod 2,
+//	-	no se realizará ninguna acción por parte del hilo, si es congruente con 1 mod 2,
+//	-	se multiplica por 2 el primer coincidente y se borra la ficha del hilo.
+//	-	Las coincidencias deben de ser inmediatas, solo permitiendose el 0 entre las fichas (0 == vacio)
+//	-	-	La puntuación se recoge en la matriz p
+__global__ void SumaAbj(int *m, int *p, int WidthM, int WidthN) {
+	//obtención id del hilo
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idTx = threadIdx.x;	int idTy = threadIdx.y;
+
+	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
+	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+
+	int ficha, c = 0, aux, i;
+
+	//filtro de hilos
+	if (id_fil < WidthM && id_col < WidthN) {
+		ficha = m[id_fil*WidthN + id_col];
+
+		//si la ficha está vacia, el hilo no buscará
+		if (ficha != 0) {
+			//Se realiza la busqueda hacia abj
+			for (i = id_fil + 1; i < WidthM; i++) {
+				aux = m[i*WidthN + id_col];
+
+				if (aux == ficha) c++;//contamos las coincidencias
+				else if (aux != 0) i = WidthM;//No podemos emparejar saltandonos fichas
+			}
+
+			//	Si el numero de coincidencias es congruente con 1 mod 2
+			//	se busca la primera coincidencia, se multiplica por 2 y se borra la ficha 
+			//	Si fuese congruente con 0 mod 2, no debe acceder al for
+			if ((c % 2) == 0)p[id_fil*WidthN + id_col] = 0;
+			for (i = id_fil + 1; i < WidthM && (c % 2) == 1; i++) {
+				aux = m[i*WidthN + id_col];
+				if (aux == ficha) {
+					m[i*WidthN + id_col] = ficha * 2;
+					m[id_fil*WidthN + id_col] = 0;
+					p[id_fil*WidthN + id_col] = ficha * 2;//	Grabamos la puntuación obtenido con la suma
+					c--;//Para que el bucle for termine
+				}
+
+				//	(Aclaración) Si estamos entrando en este bucle for,
+				//		significa que se ha encontrado una pareja viable anteriormente
+				//		por lo que no se filtra si se opera con una ficha no válida
+			}
+		}
+		else p[id_fil*WidthN + id_col] = 0;
+	}
+}
+
+//	Ejecución de Movimiento hacia Abajo de las piezas
+//	-	Cada hilo toma su ficha (si es distinta de 0) y busca espacios en blanco por debajo de ella
+//	-	Cuando no encuentra más huecos en la matriz, intercambia su ficha con la del último hueco hallado
+//	-	al ser 0, intercambia con una vacía, si no hubiese huecos por debajo, la intercambia consigo mismo
+//	-	-	Esta función debe ser llamada hasta que no devuelva ningún cambio en la Matriz de Juego
+__global__ void exMovAbj(int *m, bool *b, int WidthM, int WidthN) {
+	//obtención id del hilo
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idTx = threadIdx.x;	int idTy = threadIdx.y;
+
+	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
+	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+
+	int ficha, id_aux = id_fil;
+
+	//filtro de hilos
+	if (id_fil < WidthM && id_col < WidthN) {
+		ficha = m[id_fil*WidthN + id_col];
+
+		if (ficha != 0) {//si es 0, no hay que hacer ningún movimiento
+			for (int i = id_fil + 1; i < WidthM; i++) {
+				if (m[i*WidthN + id_col] == 0) id_aux = i;//se va buscando huecos vacios
+				else i = WidthM;//hasta toparse con otra ficha, entonces paramos la búsqueda
+			}
+
+			//Intercambiamos las fichas, aunque no se haya encontrado ningún hueco
+			m[id_fil*WidthN + id_col] = m[id_aux*WidthN + id_col];
+			m[id_aux*WidthN + id_col] = ficha;
+		}
+
+		//	Si no hay ningún movimiento de ficha en el hilo, será false
+		//	de haberlo, será true
+		b[id_fil*WidthN + id_col] = id_fil != id_aux;
+	}
+
+	//	El resultado de m deberá ser la matriz con las fichas que se pudieran mover hacia abajo, movidas,
+	//	Y el de b todos los elementos a false, excepto los coincidentes con las fichas que se han podido mover
+}
+
+//-------------------------------------------------------------------------------------------------
+
 //------------------------------------------- Host ------------------------------------------------
 
-enum Colores {
+enum Colores {	//Colores para el fondo y la fuente de la consola
 	BLACK = 0,
 	BLUE = 1,
 	GREEN = 2,
@@ -56,13 +471,14 @@ enum Colores {
 	WHITE = 15
 };
 
-void Color(int Background, int Text) {
+//	Cambia el color de fondo y de fuente de la consola
+void Color(int fondo, int fuente) {
 
-	HANDLE Console = GetStdHandle(STD_OUTPUT_HANDLE);
+	HANDLE Consola = GetStdHandle(STD_OUTPUT_HANDLE);
 	//Cálculo para convertir los colores al valor necesario
-	int New_Color = Text + (Background * 16);
+	int color_nuevo = fuente + (fondo * 16);
 	//Aplicamos el color a la consola
-	SetConsoleTextAttribute(Console, New_Color);
+	SetConsoleTextAttribute(Consola, color_nuevo);
 
 }
 
@@ -75,41 +491,47 @@ bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, char *s) {
 	char *token; //tokens de la matriz
 	int k; //contador de acceso a la matriz
 	ifstream entrada(s); //Fichero de entrada
-	bool out = entrada.is_open();
+	bool out = entrada.is_open(); //Si ha logrado abrir el archivo
 
 	if (out) {
-		if (getline(entrada, linea, ';')) {
+		//	Carga de la matriz de juego
+		if (getline(entrada, linea, ';')) {//	Toma hasta el ';'
 			c = (char*)malloc(linea.size() * sizeof(char));
-			strcpy(c, linea.c_str());
-			token = strtok(c, " ,");
-			k = 0;
+			strcpy(c, linea.c_str());//	Pasamos a char para trabajar con ello
+			token = strtok(c, " ,");//	Extraemos los numeros con Tokens
+			k = 0;	//	Contador a 0
 
 			while (token != NULL) {
-				v[k] = atoi(token);
+				v[k] = atoi(token);//	Introducimos el cada numero en la matriz obteniendo Tokens
 				k++;
 				token = strtok(NULL, " ,");
 			}
-		}
 
+			free(c);//	liberamos la memoria reservada para el char *
+		}
+		//	Carga del numero de filas de la matriz de juego
 		if (getline(entrada, linea, ';')) {
 			c = (char*)malloc(linea.size() * sizeof(char));
 			strcpy(c, linea.c_str());
 			*WidthM = atoi(c);
+			free(c);
 		}
-
+		//	Carga del numero de columnas de la matriz de juego
 		if (getline(entrada, linea, ';')) {
 			c = (char*)malloc(linea.size() * sizeof(char));
 			strcpy(c, linea.c_str());
 			*WidthN = atoi(c);
+			free(c);
 		}
-
+		//	Carga de la puntuación
 		if (getline(entrada, linea, ';')) {
 			c = (char*)malloc(linea.size() * sizeof(char));
 			strcpy(c, linea.c_str());
 			*puntuacion = atoi(c);
+			free(c);
 		}
 
-		entrada.close();
+		entrada.close();//Cerramos el archivo
 	}
 	else fprintf(stderr, "Fallo al intentar abrir el archivo de guardado\n");
 
@@ -120,21 +542,23 @@ bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, char *s) {
 //	-	v matriz de juego, WidthM y WidthN dimensiones de la matriz de juego,
 //	-	puntuación de la partida y nombre del archivo destino
 void guardaDatos(int *v, int WidthM, int WidthN, int puntuacion, char *s) {
-	ofstream salida;
-	int Width = WidthM * WidthN;
-	salida.open(s);
+	ofstream salida;//	Fichero de salida
+	int Width = WidthM * WidthN;//	Numero de elementos de la matriz de juego
+	salida.open(s);//	Abrimos el fichero
 	if (salida.is_open()) {
-		for (int i = 0; i < Width; i++) {
-			salida << v[i];
-			if (i < Width - 1) salida << ",";
+		for (int i = 0; i < Width; i++) {	//	Recorremos la matriz y
+			salida << v[i];					//	vamos grabando los elementos en el archivo
+			if (i < Width - 1) salida << ",";//	separando con ','
 		}
+		//	El resto de los datos los grabamos separandolos con ';'
 		salida << ";" << WidthM << ";" << WidthN << ";" << puntuacion << ";";
 
-		salida.close();
+		salida.close();//	Cerramos el archivo
 	}
+	else fprintf(stderr, "Fallo al intentar abrir el archivo de guardado\n");
 }
 
-//Leemos de teclado y devolvemos un numero de salida en funcion de la tecla pulsada
+//	Leemos de teclado y devolvemos un numero de salida en funcion de la tecla pulsada
 int reconocerTeclado() {
 	char tecla;
 	int salida;
@@ -161,7 +585,7 @@ int reconocerTeclado() {
 	return salida;
 }
 
-//Mostramos una introduccion
+//	Mostramos una introduccion
 void mostrarMenuInicial() {
 
 	printf(".----------------.  .----------------.  .----------------.  .----------------.  .----------------.\n");
@@ -180,7 +604,7 @@ void mostrarMenuInicial() {
 
 }
 
-//Mostramos las opciones de pausa
+//	Mostramos las opciones de pausa
 void mostrarMenuPausa() {
 	printf("                        PAUSA             \n\n");
 	printf("Selecciona una opcion:\n");
@@ -189,6 +613,8 @@ void mostrarMenuPausa() {
 	printf("\t S - Salir sin guardar \n");
 }
 
+//	Imprime la matriz de juego
+//	-	Recorre las filas de la matriz de juego
 void imprimeMatriz(int *v, int m, int n) {//( m * n )
 	int i, j, x;
 	int ws;//numero de espacios de caracteres por casilla
@@ -205,7 +631,7 @@ void imprimeMatriz(int *v, int m, int n) {//( m * n )
 				x = x / 10;
 			} while (x > 0);
 
-			switch (v[i*n + j]) {
+			switch (v[i*n + j]) {//	Modifica el color en el que se mostrarán los elementos
 			case 0:
 				Color(BLACK, BLACK);
 				break;
@@ -311,6 +737,7 @@ bool introNum(int *m, int WidthM, int WidthN, int x, int y, int set) {
 	return false;
 }
 
+//	Comprueba si hay al menos un elemento verdadero en la matriz
 bool checkMatrizBool(bool *b, int m, int n) {
 	bool out = false;
 	int i, j;
@@ -324,7 +751,7 @@ bool checkMatrizBool(bool *b, int m, int n) {
 	return out;
 }
 
-//Ejecutamos una accion en funcion de la tecla pulsada
+//	Ejecutamos una accion en funcion de la tecla pulsada
 void accionPausa() {
 	int tecla;
 
@@ -347,22 +774,29 @@ void accionPausa() {
 
 }
 
-//Realizamos los movimientos y las sumas hacia arriba
-void accionArriba() {
+//	Realizamos las sumas y los movimientos hacia arriba
+void accionArriba(int *v, int *p, int WidthM, int WidthN) {
+	int *dev_v = 0, *dev_p = 0;
+	bool *dev_b = 0, *b;
+
+	//	Sumamos las fichas que se puedan juntar
+
+	//	Inicializamos la matriz de bool
+
 
 }
 
-//Realizamos los movimientos y las sumas hacia la izquierda
+//Realizamos las sumas y los movimientos hacia la izquierda
 void accionIzquierda() {
 
 }
 
-//Realizamos los movimientos y las sumas hacia la derecha
+//Realizamos las sumas y los movimientos hacia la derecha
 void accionDerecha() {
 
 }
 
-//Realizamos los movimientos y las sumas hacia abajo
+//Realizamos las sumas y los movimientos hacia abajo
 void accionAbajo() {
 
 }
@@ -424,405 +858,6 @@ int main() {
 	}
 }
 
-
-//-------------------------------------------------------------------------------------------------
-
-//------------------------------------------ Device -----------------------------------------------
-
-//	Inicializador de la matriz de juego
-//	-	*m Matriz en forma vectorial con la que se trabaja, WidthM y WidthN su tamaño de columna y fila
-//	-	x e y, las coordenadas del elemento que se iniciará al menor entero positivo válido
-__global__ void Inicializador(int *m, int WidthM, int WidthN, int x, int y) {
-	//obtención id del hilo
-	int idBx = blockIdx.x;	int idBy = blockIdx.y;
-	int idTx = threadIdx.x;	int idTy = threadIdx.y;
-
-	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
-	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
-
-	if (id_fil < WidthM && id_col < WidthN) {//Comprobación de que el hilo esté dentro de los límites
-		if (x == id_col && y == id_fil) m[id_fil*WidthN + id_col] = 2;
-		else m[id_fil*WidthN + id_col] = 0;
-	}
-}
-
-//	Inicializador de matrices booleanas
-//	-	*b Matriz vectorial de booleanos, WidthM y WidthN dimensiones de columna y fila
-//	-	set el valor booleano a introducir
-__global__ void iniBool(bool *b, int WidthM, int WidthN, bool set) {
-	//obtención id del hilo
-	int idBx = blockIdx.x;	int idBy = blockIdx.y;
-	int idTx = threadIdx.x;	int idTy = threadIdx.y;
-
-	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
-	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
-
-	if (id_fil < WidthM && id_col < WidthN) {//Comprobación de que el hilo esté dentro de los límites
-
-		b[id_fil*WidthN + id_col] = set;//damos al elemento correspondiente el valor indicado
-
-	}
-}
-
-//---------------------- Dch -------------------------
-
-//	Cada hilo busca una pareja para su elemento correspondiente, y si es viable, realiza la suma
-//	-	Cada hilo recorre la matriz hacia la derecha buscando fichas como la suya viables para la suma
-//	-	para ello, cuenta cuantas coincidencias hay, si el numero es congruente con 0 mod 2,
-//	-	no se realizará ninguna acción por parte del hilo, si es congruente con 1 mod 2,
-//	-	se multiplica por 2 el primer coincidente y se borra la ficha del hilo.
-//	-	Las coincidencias deben de ser inmediatas, solo permitiendose el 0 entre las fichas (0 == vacio)
-__global__ void SumaDch(int *m, int WidthM, int WidthN) {
-	//obtención id del hilo
-	int idBx = blockIdx.x;	int idBy = blockIdx.y;
-	int idTx = threadIdx.x;	int idTy = threadIdx.y;
-
-	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
-	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
-
-	int ficha, c = 0, aux, i;
-
-	//filtro de hilos
-	if (id_fil < WidthM && id_col < WidthN) {
-		ficha = m[id_fil*WidthN + id_col];
-
-		//si la ficha está vacia, el hilo no buscará
-		if (ficha != 0) {
-			//Se realiza la busqueda hacia la dch
-			for (i = id_col+1; i < WidthN; i++) {
-				aux = m[id_fil*WidthN + i];
-
-				if (aux == ficha) c++;//contamos las coincidencias
-				else if (aux != 0) i = WidthN;//No podemos emparejar saltandonos fichas
-			}
-
-			//	Si el numero de coincidencias es congruente con 1 mod 2
-			//	se busca la primera coincidencia, se multiplica por 2 y se borra la ficha 
-			//	Si fuese congruente con 0 mod 2, no debe acceder al for
-			for (i = id_col + 1; i < WidthN && (c % 2) == 1; i++) {
-				aux = m[id_fil*WidthN + i];
-				if (aux == ficha) {
-					m[id_fil*WidthN + i] = ficha * 2;
-					m[id_fil*WidthN + id_col] = 0;
-					c--;//Para que el bucle for termine
-				}
-
-				//	(Aclaración) Si estamos entrando en este bucle for,
-				//		significa que se ha encontrado una pareja viable anteriormente
-				//		por lo que no se filtra si se opera con una ficha no válida
-			}
-		}
-	}
-}
-
-//	Ejecución de Movimiento a la Derecha de las piezas
-//	-	Cada hilo toma su ficha (si es distinta de 0) y busca espacios en blanco a su derecha
-//	-	Cuando no encuentra más huecos en la matriz, intercambia su ficha con la del último hueco hallado
-//	-	al ser 0, intercambia con una vacía, si no hubiese huecos a su derecha, la intercambia consigo mismo
-//	-	-	Esta función debe ser llamada hasta que no devuelva ningún cambio en la Matriz de Juego
-__global__ void exMovDch(int *m, bool *b, int WidthM, int WidthN) {
-	//obtención id del hilo
-	int idBx = blockIdx.x;	int idBy = blockIdx.y;
-	int idTx = threadIdx.x;	int idTy = threadIdx.y;
-
-	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
-	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
-
-	int ficha, id_aux = id_col;
-
-	//filtro de hilos
-	if (id_fil < WidthM && id_col < WidthN) {
-		ficha = m[id_fil*WidthN + id_col];
-		
-		if (ficha != 0) {//si es 0, no hay que hacer ningún movimiento
-			for (int i = id_col + 1; i < WidthN; i++) {
-				if (m[id_fil*WidthN + i] == 0) id_aux = i;//se va buscando huecos vacios
-				else i = WidthN;//hasta toparse con otra ficha, entonces paramos la búsqueda
-			}
-
-			//Intercambiamos las fichas, aunque no se haya encontrado ningún hueco
-			m[id_fil*WidthN + id_col] = m[id_fil*WidthN + id_aux];
-			m[id_fil*WidthN + id_aux] = ficha;
-		}
-		
-		//	Si no hay ningún movimiento de ficha en el hilo, será false
-		//	de haberlo, será true
-		b[id_fil*WidthN + id_col] = id_col != id_aux;
-	}
-
-	//	El resultado de m deberá ser la matriz con las fichas que se pudieran mover a la derecha, movidas,
-	//	Y el de b todos los elementos a false, excepto los coincidentes con las fichas que se han podido mover
-}
-
-//---------------------- Izq -------------------------
-
-//	Cada hilo busca una pareja para su elemento correspondiente, y si es viable, realiza la suma
-//	-	Cada hilo recorre la matriz hacia la izquierda buscando fichas como la suya viables para la suma
-//	-	para ello, cuenta cuantas coincidencias hay, si el numero es congruente con 0 mod 2,
-//	-	no se realizará ninguna acción por parte del hilo, si es congruente con 1 mod 2,
-//	-	se multiplica por 2 el primer coincidente y se borra la ficha del hilo.
-//	-	Las coincidencias deben de ser inmediatas, solo permitiendose el 0 entre las fichas (0 == vacio)
-__global__ void SumaIzq(int *m, int WidthM, int WidthN) {
-	//obtención id del hilo
-	int idBx = blockIdx.x;	int idBy = blockIdx.y;
-	int idTx = threadIdx.x;	int idTy = threadIdx.y;
-
-	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
-	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
-
-	int ficha, c = 0, aux, i;
-
-	//filtro de hilos
-	if (id_fil < WidthM && id_col < WidthN) {
-		ficha = m[id_fil*WidthN + id_col];
-
-		//si la ficha está vacia, el hilo no buscará
-		if (ficha != 0) {
-			//Se realiza la busqueda hacia la izq
-			for (i = id_col - 1; i >= 0; i--) {
-				aux = m[id_fil*WidthN + i];
-
-				if (aux == ficha) c++;//contamos las coincidencias
-				else if (aux != 0) i = -1;//No podemos emparejar saltandonos fichas
-			}
-
-			//	Si el numero de coincidencias es congruente con 1 mod 2
-			//	se busca la primera coincidencia, se multiplica por 2 y se borra la ficha 
-			//	Si fuese congruente con 0 mod 2, no debe acceder al for
-			for (i = id_col - 1; i <= 0 && (c % 2) == 1; i--) {
-				aux = m[id_fil*WidthN + i];
-				if (aux == ficha) {
-					m[id_fil*WidthN + i] = ficha * 2;
-					m[id_fil*WidthN + id_col] = 0;
-					c--;//Para que el bucle for termine
-				}
-
-				//	(Aclaración) Si estamos entrando en este bucle for,
-				//		significa que se ha encontrado una pareja viable anteriormente
-				//		por lo que no se filtra si se opera con una ficha no válida
-			}
-		}
-	}
-}
-
-//	Ejecución de Movimiento a la Izquierda de las piezas
-//	-	Cada hilo toma su ficha (si es distinta de 0) y busca espacios en blanco a su izquierda
-//	-	Cuando no encuentra más huecos en la matriz, intercambia su ficha con la del último hueco hallado
-//	-	al ser 0, intercambia con una vacía, si no hubiese huecos a su izquierda, la intercambia consigo mismo
-//	-	-	Esta función debe ser llamada hasta que no devuelva ningún cambio en la Matriz de Juego
-__global__ void exMovIzq(int *m, bool *b, int WidthM, int WidthN) {
-	//obtención id del hilo
-	int idBx = blockIdx.x;	int idBy = blockIdx.y;
-	int idTx = threadIdx.x;	int idTy = threadIdx.y;
-
-	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
-	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
-
-	int ficha, id_aux = id_col;
-
-	//filtro de hilos
-	if (id_fil < WidthM && id_col < WidthN) {
-		ficha = m[id_fil*WidthN + id_col];
-
-		if (ficha != 0) {//si es 0, no hay que hacer ningún movimiento
-			for (int i = id_col - 1; i >= 0; i--) {
-				if (m[id_fil*WidthN + i] == 0) id_aux = i;//se va buscando huecos vacios
-				else i = -1;//hasta toparse con otra ficha, entonces paramos la búsqueda
-			}
-
-			//Intercambiamos las fichas, aunque no se haya encontrado ningún hueco
-			m[id_fil*WidthN + id_col] = m[id_fil*WidthN + id_aux];
-			m[id_fil*WidthN + id_aux] = ficha;
-		}
-
-		//	Si no hay ningún movimiento de ficha en el hilo, será false
-		//	de haberlo, será true
-		b[id_fil*WidthN + id_col] = id_col != id_aux;
-	}
-
-	//	El resultado de m deberá ser la matriz con las fichas que se pudieran mover a la izquierda, movidas,
-	//	Y el de b todos los elementos a false, excepto los coincidentes con las fichas que se han podido mover
-}
-
-//---------------------- Arb -------------------------
-
-//	Cada hilo busca una pareja para su elemento correspondiente, y si es viable, realiza la suma
-//	-	Cada hilo recorre la matriz hacia arriba buscando fichas como la suya viables para la suma
-//	-	para ello, cuenta cuantas coincidencias hay, si el numero es congruente con 0 mod 2,
-//	-	no se realizará ninguna acción por parte del hilo, si es congruente con 1 mod 2,
-//	-	se multiplica por 2 el primer coincidente y se borra la ficha del hilo.
-//	-	Las coincidencias deben de ser inmediatas, solo permitiendose el 0 entre las fichas (0 == vacio)
-__global__ void SumaArb(int *m, int WidthM, int WidthN) {
-	//obtención id del hilo
-	int idBx = blockIdx.x;	int idBy = blockIdx.y;
-	int idTx = threadIdx.x;	int idTy = threadIdx.y;
-
-	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
-	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
-
-	int ficha, c = 0, aux, i;
-
-	//filtro de hilos
-	if (id_fil < WidthM && id_col < WidthN) {
-		ficha = m[id_fil*WidthN + id_col];
-
-		//si la ficha está vacia, el hilo no buscará
-		if (ficha != 0) {
-			//Se realiza la busqueda hacia arriba
-			for (i = id_fil - 1; i >= 0; i--) {
-				aux = m[i*WidthN + id_col];
-
-				if (aux == ficha) c++;//contamos las coincidencias
-				else if (aux != 0) i = -1;//No podemos emparejar saltandonos fichas
-			}
-
-			//	Si el numero de coincidencias es congruente con 1 mod 2
-			//	se busca la primera coincidencia, se multiplica por 2 y se borra la ficha 
-			//	Si fuese congruente con 0 mod 2, no debe acceder al for
-			for (i = id_fil - 1; i <= 0 && (c % 2) == 1; i--) {
-				aux = m[i*WidthN + id_col];
-				if (aux == ficha) {
-					m[i*WidthN + id_col] = ficha * 2;
-					m[id_fil*WidthN + id_col] = 0;
-					c--;//Para que el bucle for termine
-				}
-
-				//	(Aclaración) Si estamos entrando en este bucle for,
-				//		significa que se ha encontrado una pareja viable anteriormente
-				//		por lo que no se filtra si se opera con una ficha no válida
-			}
-		}
-	}
-}
-
-//	Ejecución de Movimiento hacia Arriba de las piezas
-//	-	Cada hilo toma su ficha (si es distinta de 0) y busca espacios en blanco por encima
-//	-	Cuando no encuentra más huecos en la matriz, intercambia su ficha con la del último hueco hallado
-//	-	al ser 0, intercambia con una vacía, si no hubiese huecos por encima, la intercambia consigo mismo
-//	-	-	Esta función debe ser llamada hasta que no devuelva ningún cambio en la Matriz de Juego
-__global__ void exMovArb(int *m, bool *b, int WidthM, int WidthN) {
-	//obtención id del hilo
-	int idBx = blockIdx.x;	int idBy = blockIdx.y;
-	int idTx = threadIdx.x;	int idTy = threadIdx.y;
-
-	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
-	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
-
-	int ficha, id_aux = id_fil;
-
-	//filtro de hilos
-	if (id_fil < WidthM && id_col < WidthN) {
-		ficha = m[id_fil*WidthN + id_col];
-
-		if (ficha != 0) {//si es 0, no hay que hacer ningún movimiento
-			for (int i = id_fil - 1; i >= 0; i--) {
-				if (m[i*WidthN + id_col] == 0) id_aux = i;//se va buscando huecos vacios
-				else i = -1;//hasta toparse con otra ficha, entonces paramos la búsqueda
-			}
-
-			//Intercambiamos las fichas, aunque no se haya encontrado ningún hueco
-			m[id_fil*WidthN + id_col] = m[id_aux*WidthN + id_col];
-			m[id_aux*WidthN + id_col] = ficha;
-		}
-
-		//	Si no hay ningún movimiento de ficha en el hilo, será false
-		//	de haberlo, será true
-		b[id_fil*WidthN + id_col] = id_fil != id_aux;
-	}
-
-	//	El resultado de m deberá ser la matriz con las fichas que se pudieran mover hacia arriba, movidas,
-	//	Y el de b todos los elementos a false, excepto los coincidentes con las fichas que se han podido mover
-}
-
-//---------------------- Abj -------------------------
-
-//	Cada hilo busca una pareja para su elemento correspondiente, y si es viable, realiza la suma
-//	-	Cada hilo recorre la matriz hacia abajo buscando fichas como la suya viables para la suma
-//	-	para ello, cuenta cuantas coincidencias hay, si el numero es congruente con 0 mod 2,
-//	-	no se realizará ninguna acción por parte del hilo, si es congruente con 1 mod 2,
-//	-	se multiplica por 2 el primer coincidente y se borra la ficha del hilo.
-//	-	Las coincidencias deben de ser inmediatas, solo permitiendose el 0 entre las fichas (0 == vacio)
-__global__ void SumaAbj(int *m, int WidthM, int WidthN) {
-	//obtención id del hilo
-	int idBx = blockIdx.x;	int idBy = blockIdx.y;
-	int idTx = threadIdx.x;	int idTy = threadIdx.y;
-
-	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
-	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
-
-	int ficha, c = 0, aux, i;
-
-	//filtro de hilos
-	if (id_fil < WidthM && id_col < WidthN) {
-		ficha = m[id_fil*WidthN + id_col];
-
-		//si la ficha está vacia, el hilo no buscará
-		if (ficha != 0) {
-			//Se realiza la busqueda hacia abj
-			for (i = id_fil + 1; i < WidthM; i++) {
-				aux = m[i*WidthN + id_col];
-
-				if (aux == ficha) c++;//contamos las coincidencias
-				else if (aux != 0) i = WidthM;//No podemos emparejar saltandonos fichas
-			}
-
-			//	Si el numero de coincidencias es congruente con 1 mod 2
-			//	se busca la primera coincidencia, se multiplica por 2 y se borra la ficha 
-			//	Si fuese congruente con 0 mod 2, no debe acceder al for
-			for (i = id_fil + 1; i < WidthM && (c % 2) == 1; i++) {
-				aux = m[i*WidthN + id_col];
-				if (aux == ficha) {
-					m[i*WidthN + id_col] = ficha * 2;
-					m[id_fil*WidthN + id_col] = 0;
-					c--;//Para que el bucle for termine
-				}
-
-				//	(Aclaración) Si estamos entrando en este bucle for,
-				//		significa que se ha encontrado una pareja viable anteriormente
-				//		por lo que no se filtra si se opera con una ficha no válida
-			}
-		}
-	}
-}
-
-//	Ejecución de Movimiento hacia Abajo de las piezas
-//	-	Cada hilo toma su ficha (si es distinta de 0) y busca espacios en blanco por debajo de ella
-//	-	Cuando no encuentra más huecos en la matriz, intercambia su ficha con la del último hueco hallado
-//	-	al ser 0, intercambia con una vacía, si no hubiese huecos por debajo, la intercambia consigo mismo
-//	-	-	Esta función debe ser llamada hasta que no devuelva ningún cambio en la Matriz de Juego
-__global__ void exMovAbj(int *m, bool *b, int WidthM, int WidthN) {
-	//obtención id del hilo
-	int idBx = blockIdx.x;	int idBy = blockIdx.y;
-	int idTx = threadIdx.x;	int idTy = threadIdx.y;
-
-	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
-	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
-
-	int ficha, id_aux = id_fil;
-
-	//filtro de hilos
-	if (id_fil < WidthM && id_col < WidthN) {
-		ficha = m[id_fil*WidthN + id_col];
-
-		if (ficha != 0) {//si es 0, no hay que hacer ningún movimiento
-			for (int i = id_fil + 1; i < WidthM; i++) {
-				if (m[i*WidthN + id_col] == 0) id_aux = i;//se va buscando huecos vacios
-				else i = WidthM;//hasta toparse con otra ficha, entonces paramos la búsqueda
-			}
-
-			//Intercambiamos las fichas, aunque no se haya encontrado ningún hueco
-			m[id_fil*WidthN + id_col] = m[id_aux*WidthN + id_col];
-			m[id_aux*WidthN + id_col] = ficha;
-		}
-
-		//	Si no hay ningún movimiento de ficha en el hilo, será false
-		//	de haberlo, será true
-		b[id_fil*WidthN + id_col] = id_fil != id_aux;
-	}
-
-	//	El resultado de m deberá ser la matriz con las fichas que se pudieran mover hacia abajo, movidas,
-	//	Y el de b todos los elementos a false, excepto los coincidentes con las fichas que se han podido mover
-}
 
 //-------------------------------------------------------------------------------------------------
 
