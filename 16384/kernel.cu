@@ -22,8 +22,9 @@
 using namespace std;
 
 const int WS = 6;
-const int TILE_WIDTH = 0;
+int TILE_WIDTH = 0;
 char FICHERO[] = "16384.sav";
+
 
 //	Ejemplo de como quedaría la matriz
 
@@ -482,6 +483,34 @@ void Color(int fondo, int fuente) {
 
 }
 
+void obtenerCaracteristicas(int n_columnas, int n_filas) {
+	cudaDeviceProp prop;
+	cudaGetDeviceProperties(&prop, 0);
+
+	printf("Características de la tarjeta: \n");
+	printf("Nombre: %s \n", prop.name);
+	printf("Capabilities: %d.%d \n", prop.major, prop.minor);
+	printf("Maximo de hilos por bloque: %d \n", prop.maxThreadsPerBlock);
+	printf("Maximo de hilos por SM: %d \n", prop.maxThreadsPerMultiProcessor);
+	printf("Maximo de memoria global: %zd \n", prop.totalGlobalMem);
+	printf("Maximo de memoria compartida: %zd \n", prop.sharedMemPerBlock);
+	printf("Maximo de registros: %d \n", prop.regsPerBlock);
+	printf("Numero de multiprocesadores: %d \n", prop.multiProcessorCount);
+
+	//Tamanio de la matriz en hilos y memoria
+	printf("Numero de hilos de la matriz: %d \n", n_columnas*n_filas);
+	printf("Cantidad de memoria utilizada por la matriz: %d \n", n_columnas*n_filas * sizeof(int));
+
+	if (prop.maxThreadsPerBlock < (n_columnas*n_filas)) {
+		printf("No hay suficientes hilos disponibles para calcular la matriz\n");
+		exit(-1);
+	}
+	if (prop.totalGlobalMem < (n_columnas*n_filas * sizeof(int))) {
+		printf("El tamaño de memoria global es insuficiente para calcular la matriz \n");
+		exit(-1);
+	}
+}
+
 //	Carga los datos del Juego Guardados anteriormente
 //	-	v Matriz de Juego, WidthM y WidthN el tamaó de la matriz de juego,
 //	-	puntuacion de juego acumulada y s el nombre del archivo de guardado
@@ -751,6 +780,21 @@ bool checkMatrizBool(bool *b, int m, int n) {
 	return out;
 }
 
+//	Suma la puntuación total de la matriz
+//	-	Recorremos toda la matriz buscando la puntuación total que guarda
+int sumaPuntuacion(int *p, int m, int n) {
+	int out = 0;
+	int i, j;
+
+	for (i = 0; i < m; i++) {
+		for (j = 0; j < n; j++) {
+			out = out + p[i*n + j];
+		}
+	}
+
+	return out;
+}
+
 //	Ejecutamos una accion en funcion de la tecla pulsada
 void accionPausa() {
 	int tecla;
@@ -775,30 +819,561 @@ void accionPausa() {
 }
 
 //	Realizamos las sumas y los movimientos hacia arriba
-void accionArriba(int *v, int *p, int WidthM, int WidthN) {
+//	-	v Matriz de juego, p UN SOLO ENTERO CON LA PUNTUACIÓN,
+//	-	la propia función se encargará de obtenerlo
+cudaError_t accionArriba(int *v, int *p, int WidthM, int WidthN) {
+
+	cudaError_t cudaStatus;
 	int *dev_v = 0, *dev_p = 0;
-	bool *dev_b = 0, *b;
+	bool *dev_b = 0;
+	dim3 dimGrid(1,1);
+	dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
+
+	int *h_p = (int*) malloc(WidthM * WidthN * sizeof(int));
+	bool *b = (bool*) malloc(WidthM * WidthN * sizeof(bool));
+
+	// Choose which GPU to run on, change this on a multi-GPU system.
+	cudaStatus = cudaSetDevice(0);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
+		goto FreeArb;
+	}
+
+	// Allocate GPU buffers
+	cudaStatus = cudaMalloc((void**)&dev_v, WidthM * WidthN * sizeof(int));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc failed!");
+		goto FreeArb;
+	}
+
+	cudaStatus = cudaMalloc((void**)&dev_p, WidthM * WidthN * sizeof(int));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc failed!");
+		goto FreeArb;
+	}
+	
+	cudaStatus = cudaMemcpy(dev_v, v, WidthM * WidthN * sizeof(int), cudaMemcpyHostToDevice);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto FreeArb;
+	}
 
 	//	Sumamos las fichas que se puedan juntar
 
-	//	Inicializamos la matriz de bool
+	SumaArb << <dimGrid, dimBlock >> > (dev_v, dev_p, WidthM, WidthN);
+
+	// Check for any errors launching the kernel
+	cudaStatus = cudaGetLastError();
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+		goto FreeArb;
+	}
+
+	// cudaDeviceSynchronize waits for the kernel to finish, and returns
+	// any errors encountered during the launch.
+	cudaStatus = cudaDeviceSynchronize();
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+		goto FreeArb;
+	}
+
+	// Copy output vector from GPU buffer to host memory.
+	cudaStatus = cudaMemcpy(v, dev_v, WidthM * WidthN * sizeof(int), cudaMemcpyDeviceToHost);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto FreeArb;
+	}
+
+	cudaStatus = cudaMemcpy(h_p, dev_p, WidthM * WidthN * sizeof(int), cudaMemcpyDeviceToHost);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto FreeArb;
+	}
+
+	*p = sumaPuntuacion(h_p, WidthM, WidthN);
+
+	cudaStatus = cudaMalloc((void**)&dev_b, WidthM * WidthN * sizeof(bool));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc failed!");
+		goto FreeArb;
+	}
+
+	do {
+		//	Inicializamos la matriz de bool
+
+		//	Rellena de False la matriz de booleanos
+		iniBool << <dimGrid, dimBlock >> > (dev_b, WidthM, WidthN, false);
+
+		cudaStatus = cudaGetLastError();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			goto FreeArb;
+		}
+
+		cudaStatus = cudaDeviceSynchronize();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+			goto FreeArb;
+		}
+
+		//	Movemos
+
+		exMovArb << <dimGrid, dimBlock >> > (dev_v, dev_b, WidthM, WidthN);
+
+		cudaStatus = cudaGetLastError();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			goto FreeArb;
+		}
+
+		cudaStatus = cudaDeviceSynchronize();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+			goto FreeArb;
+		}
+
+		cudaStatus = cudaMemcpy(v, dev_v, WidthM * WidthN * sizeof(int), cudaMemcpyDeviceToHost);
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaMemcpy failed!");
+			goto FreeArb;
+		}
+
+		cudaStatus = cudaMemcpy(b, dev_b, WidthM * WidthN * sizeof(bool), cudaMemcpyDeviceToHost);
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaMemcpy failed!");
+			goto FreeArb;
+		}
+
+		//Mientras se haya movido una ficha se vuelve a ejecutar el movimiento
+	} while (checkMatrizBool(b, WidthM, WidthN));
 
 
+
+FreeArb:
+	cudaFree(dev_v);
+	cudaFree(dev_p);
+	cudaFree(dev_b);
+	free(h_p);
+	free(b);
+
+	return cudaStatus;
 }
 
 //Realizamos las sumas y los movimientos hacia la izquierda
-void accionIzquierda() {
+cudaError_t accionIzquierda(int *v, int *p, int WidthM, int WidthN) {
 
+	cudaError_t cudaStatus;
+	int *dev_v = 0, *dev_p = 0;
+	bool *dev_b = 0;
+	dim3 dimGrid(1, 1);
+	dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
+
+	int *h_p = (int*)malloc(WidthM * WidthN * sizeof(int));
+	bool *b = (bool*)malloc(WidthM * WidthN * sizeof(bool));
+
+	// Choose which GPU to run on, change this on a multi-GPU system.
+	cudaStatus = cudaSetDevice(0);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
+		goto FreeIzq;
+	}
+
+	// Allocate GPU buffers
+	cudaStatus = cudaMalloc((void**)&dev_v, WidthM * WidthN * sizeof(int));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc failed!");
+		goto FreeIzq;
+	}
+
+	cudaStatus = cudaMalloc((void**)&dev_p, WidthM * WidthN * sizeof(int));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc failed!");
+		goto FreeIzq;
+	}
+
+	cudaStatus = cudaMemcpy(dev_v, v, WidthM * WidthN * sizeof(int), cudaMemcpyHostToDevice);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto FreeIzq;
+	}
+
+	//	Sumamos las fichas que se puedan juntar
+
+	SumaIzq << <dimGrid, dimBlock >> > (dev_v, dev_p, WidthM, WidthN);
+
+	// Check for any errors launching the kernel
+	cudaStatus = cudaGetLastError();
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+		goto FreeIzq;
+	}
+
+	// cudaDeviceSynchronize waits for the kernel to finish, and returns
+	// any errors encountered during the launch.
+	cudaStatus = cudaDeviceSynchronize();
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+		goto FreeIzq;
+	}
+
+	// Copy output vector from GPU buffer to host memory.
+	cudaStatus = cudaMemcpy(v, dev_v, WidthM * WidthN * sizeof(int), cudaMemcpyDeviceToHost);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto FreeIzq;
+	}
+
+	cudaStatus = cudaMemcpy(h_p, dev_p, WidthM * WidthN * sizeof(int), cudaMemcpyDeviceToHost);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto FreeIzq;
+	}
+
+	*p = sumaPuntuacion(h_p, WidthM, WidthN);
+
+	cudaStatus = cudaMalloc((void**)&dev_b, WidthM * WidthN * sizeof(bool));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc failed!");
+		goto FreeIzq;
+	}
+
+	do {
+		//	Inicializamos la matriz de bool
+
+		//	Rellena de False la matriz de booleanos
+		iniBool << <dimGrid, dimBlock >> > (dev_b, WidthM, WidthN, false);
+
+		cudaStatus = cudaGetLastError();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			goto FreeIzq;
+		}
+
+		cudaStatus = cudaDeviceSynchronize();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+			goto FreeIzq;
+		}
+
+		//	Movemos
+
+		exMovIzq << <dimGrid, dimBlock >> > (dev_v, dev_b, WidthM, WidthN);
+
+		cudaStatus = cudaGetLastError();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			goto FreeIzq;
+		}
+
+		cudaStatus = cudaDeviceSynchronize();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+			goto FreeIzq;
+		}
+
+		cudaStatus = cudaMemcpy(v, dev_v, WidthM * WidthN * sizeof(int), cudaMemcpyDeviceToHost);
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaMemcpy failed!");
+			goto FreeIzq;
+		}
+
+		cudaStatus = cudaMemcpy(b, dev_b, WidthM * WidthN * sizeof(bool), cudaMemcpyDeviceToHost);
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaMemcpy failed!");
+			goto FreeIzq;
+		}
+
+		//Mientras se haya movido una ficha se vuelve a ejecutar el movimiento
+	} while (checkMatrizBool(b, WidthM, WidthN));
+
+
+
+FreeIzq:
+	cudaFree(dev_v);
+	cudaFree(dev_p);
+	cudaFree(dev_b);
+	free(h_p);
+	free(b);
+
+	return cudaStatus;
 }
 
 //Realizamos las sumas y los movimientos hacia la derecha
-void accionDerecha() {
+cudaError_t accionDerecha(int *v, int *p, int WidthM, int WidthN) {
 
+	cudaError_t cudaStatus;
+	int *dev_v = 0, *dev_p = 0;
+	bool *dev_b = 0;
+	dim3 dimGrid(1, 1);
+	dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
+
+	int *h_p = (int*)malloc(WidthM * WidthN * sizeof(int));
+	bool *b = (bool*)malloc(WidthM * WidthN * sizeof(bool));
+
+	// Choose which GPU to run on, change this on a multi-GPU system.
+	cudaStatus = cudaSetDevice(0);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
+		goto FreeDch;
+	}
+
+	// Allocate GPU buffers
+	cudaStatus = cudaMalloc((void**)&dev_v, WidthM * WidthN * sizeof(int));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc failed!");
+		goto FreeDch;
+	}
+
+	cudaStatus = cudaMalloc((void**)&dev_p, WidthM * WidthN * sizeof(int));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc failed!");
+		goto FreeDch;
+	}
+
+	cudaStatus = cudaMemcpy(dev_v, v, WidthM * WidthN * sizeof(int), cudaMemcpyHostToDevice);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto FreeDch;
+	}
+
+	//	Sumamos las fichas que se puedan juntar
+
+	SumaDch << <dimGrid, dimBlock >> > (dev_v, dev_p, WidthM, WidthN);
+
+	// Check for any errors launching the kernel
+	cudaStatus = cudaGetLastError();
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+		goto FreeDch;
+	}
+
+	// cudaDeviceSynchronize waits for the kernel to finish, and returns
+	// any errors encountered during the launch.
+	cudaStatus = cudaDeviceSynchronize();
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+		goto FreeDch;
+	}
+
+	// Copy output vector from GPU buffer to host memory.
+	cudaStatus = cudaMemcpy(v, dev_v, WidthM * WidthN * sizeof(int), cudaMemcpyDeviceToHost);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto FreeDch;
+	}
+
+	cudaStatus = cudaMemcpy(h_p, dev_p, WidthM * WidthN * sizeof(int), cudaMemcpyDeviceToHost);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto FreeDch;
+	}
+
+	*p = sumaPuntuacion(h_p, WidthM, WidthN);
+
+	cudaStatus = cudaMalloc((void**)&dev_b, WidthM * WidthN * sizeof(bool));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc failed!");
+		goto FreeDch;
+	}
+
+	do {
+		//	Inicializamos la matriz de bool
+
+		//	Rellena de False la matriz de booleanos
+		iniBool << <dimGrid, dimBlock >> > (dev_b, WidthM, WidthN, false);
+
+		cudaStatus = cudaGetLastError();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			goto FreeDch;
+		}
+
+		cudaStatus = cudaDeviceSynchronize();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+			goto FreeDch;
+		}
+
+		//	Movemos
+
+		exMovDch << <dimGrid, dimBlock >> > (dev_v, dev_b, WidthM, WidthN);
+
+		cudaStatus = cudaGetLastError();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			goto FreeDch;
+		}
+
+		cudaStatus = cudaDeviceSynchronize();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+			goto FreeDch;
+		}
+
+		cudaStatus = cudaMemcpy(v, dev_v, WidthM * WidthN * sizeof(int), cudaMemcpyDeviceToHost);
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaMemcpy failed!");
+			goto FreeDch;
+		}
+
+		cudaStatus = cudaMemcpy(b, dev_b, WidthM * WidthN * sizeof(bool), cudaMemcpyDeviceToHost);
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaMemcpy failed!");
+			goto FreeDch;
+		}
+
+		//Mientras se haya movido una ficha se vuelve a ejecutar el movimiento
+	} while (checkMatrizBool(b, WidthM, WidthN));
+
+
+
+FreeDch:
+	cudaFree(dev_v);
+	cudaFree(dev_p);
+	cudaFree(dev_b);
+	free(h_p);
+	free(b);
+
+	return cudaStatus;
 }
 
 //Realizamos las sumas y los movimientos hacia abajo
-void accionAbajo() {
+cudaError_t accionAbajo(int *v, int *p, int WidthM, int WidthN) {
 
+	cudaError_t cudaStatus;
+	int *dev_v = 0, *dev_p = 0;
+	bool *dev_b = 0;
+	dim3 dimGrid(1, 1);
+	dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
+
+	int *h_p = (int*)malloc(WidthM * WidthN * sizeof(int));
+	bool *b = (bool*)malloc(WidthM * WidthN * sizeof(bool));
+
+	// Choose which GPU to run on, change this on a multi-GPU system.
+	cudaStatus = cudaSetDevice(0);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
+		goto FreeAbj;
+	}
+
+	// Allocate GPU buffers
+	cudaStatus = cudaMalloc((void**)&dev_v, WidthM * WidthN * sizeof(int));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc failed!");
+		goto FreeAbj;
+	}
+
+	cudaStatus = cudaMalloc((void**)&dev_p, WidthM * WidthN * sizeof(int));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc failed!");
+		goto FreeAbj;
+	}
+
+	cudaStatus = cudaMemcpy(dev_v, v, WidthM * WidthN * sizeof(int), cudaMemcpyHostToDevice);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto FreeAbj;
+	}
+
+	//	Sumamos las fichas que se puedan juntar
+
+	SumaAbj << <dimGrid, dimBlock >> > (dev_v, dev_p, WidthM, WidthN);
+
+	// Check for any errors launching the kernel
+	cudaStatus = cudaGetLastError();
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+		goto FreeAbj;
+	}
+
+	// cudaDeviceSynchronize waits for the kernel to finish, and returns
+	// any errors encountered during the launch.
+	cudaStatus = cudaDeviceSynchronize();
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+		goto FreeAbj;
+	}
+
+	// Copy output vector from GPU buffer to host memory.
+	cudaStatus = cudaMemcpy(v, dev_v, WidthM * WidthN * sizeof(int), cudaMemcpyDeviceToHost);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto FreeAbj;
+	}
+
+	cudaStatus = cudaMemcpy(h_p, dev_p, WidthM * WidthN * sizeof(int), cudaMemcpyDeviceToHost);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto FreeAbj;
+	}
+
+	*p = sumaPuntuacion(h_p, WidthM, WidthN);
+
+	cudaStatus = cudaMalloc((void**)&dev_b, WidthM * WidthN * sizeof(bool));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc failed!");
+		goto FreeAbj;
+	}
+
+	do {
+		//	Inicializamos la matriz de bool
+
+		//	Rellena de False la matriz de booleanos
+		iniBool << <dimGrid, dimBlock >> > (dev_b, WidthM, WidthN, false);
+
+		cudaStatus = cudaGetLastError();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			goto FreeAbj;
+		}
+
+		cudaStatus = cudaDeviceSynchronize();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+			goto FreeAbj;
+		}
+
+		//	Movemos
+
+		exMovAbj << <dimGrid, dimBlock >> > (dev_v, dev_b, WidthM, WidthN);
+
+		cudaStatus = cudaGetLastError();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			goto FreeAbj;
+		}
+
+		cudaStatus = cudaDeviceSynchronize();
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+			goto FreeAbj;
+		}
+
+		cudaStatus = cudaMemcpy(v, dev_v, WidthM * WidthN * sizeof(int), cudaMemcpyDeviceToHost);
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaMemcpy failed!");
+			goto FreeAbj;
+		}
+
+		cudaStatus = cudaMemcpy(b, dev_b, WidthM * WidthN * sizeof(bool), cudaMemcpyDeviceToHost);
+		if (cudaStatus != cudaSuccess) {
+			fprintf(stderr, "cudaMemcpy failed!");
+			goto FreeAbj;
+		}
+
+		//Mientras se haya movido una ficha se vuelve a ejecutar el movimiento
+	} while (checkMatrizBool(b, WidthM, WidthN));
+
+
+
+FreeAbj:
+	cudaFree(dev_v);
+	cudaFree(dev_p);
+	cudaFree(dev_b);
+	free(h_p);
+	free(b);
+
+	return cudaStatus;
 }
 
 //Salimos del juego sin guardar partida
