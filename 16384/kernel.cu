@@ -25,7 +25,8 @@
 const int WS = 6;
 int BAJO[] = { 2, 4, 8 };
 int ALTO[] = { 2, 4 };
-int TILE_WIDTH = 0;
+int VIDAS = 5;
+const int TILE_WIDTH = 0;
 char FICHERO[] = "16384.sav";
 
 
@@ -190,7 +191,6 @@ __global__ void SumaIzq(int *m, int *p, int WidthM, int WidthN) {
 	//filtro de hilos
 	if (id_fil < WidthM && id_col < WidthN) {
 		ficha = m[id_fil*WidthN + id_col];
-
 		//si la ficha está vacia, el hilo no buscará
 		if (ficha != 0) {
 			//Se realiza la busqueda hacia la izq
@@ -205,7 +205,7 @@ __global__ void SumaIzq(int *m, int *p, int WidthM, int WidthN) {
 			//	se busca la primera coincidencia, se multiplica por 2 y se borra la ficha 
 			//	Si fuese congruente con 0 mod 2, no debe acceder al for
 			if ((c % 2) == 0) p[id_fil*WidthN + id_col] = 0;
-			for (i = id_col - 1; i <= 0 && (c % 2) == 1; i--) {
+			for (i = id_col - 1; i >= 0 && (c % 2) == 1; i--) {
 				aux = m[id_fil*WidthN + i];
 				if (aux == ficha) {
 					m[id_fil*WidthN + i] = ficha * 2;
@@ -252,6 +252,7 @@ __global__ void exMovIzq(int *m, bool *b, int WidthM, int WidthN) {
 			m[id_fil*WidthN + id_col] = m[id_fil*WidthN + id_aux];
 			m[id_fil*WidthN + id_aux] = ficha;
 		}
+		
 
 		//	Si no hay ningún movimiento de ficha en el hilo, será false
 		//	de haberlo, será true
@@ -299,7 +300,7 @@ __global__ void SumaArb(int *m, int *p, int WidthM, int WidthN) {
 			//	se busca la primera coincidencia, se multiplica por 2 y se borra la ficha 
 			//	Si fuese congruente con 0 mod 2, no debe acceder al for
 			if ((c % 2) == 0) p[id_fil*WidthN + id_col] = 0;
-			for (i = id_fil - 1; i <= 0 && (c % 2) == 1; i--) {
+			for (i = id_fil - 1; i >= 0 && (c % 2) == 1; i--) {
 				aux = m[i*WidthN + id_col];
 				if (aux == ficha) {
 					m[i*WidthN + id_col] = ficha * 2;
@@ -495,6 +496,7 @@ bool IntroCasilla(int *m, int WidthN, int x, int y, int valor) {
 	return out;
 }
 
+
 void obtenerCaracteristicas(int n_columnas, int n_filas) {
 	cudaDeviceProp prop;
 	cudaGetDeviceProperties(&prop, 0);
@@ -511,7 +513,7 @@ void obtenerCaracteristicas(int n_columnas, int n_filas) {
 
 	//Tamanio de la matriz en hilos y memoria
 	printf("Numero de hilos de la matriz: %d \n", n_columnas*n_filas);
-	printf("Cantidad de memoria utilizada por la matriz: %d \n", n_columnas*n_filas * sizeof(int));
+	printf("Cantidad de memoria utilizada por la matriz: %zd \n", n_columnas*n_filas * sizeof(int));
 
 	if (prop.maxThreadsPerBlock < (n_columnas*n_filas)) {
 		printf("No hay suficientes hilos disponibles para calcular la matriz\n");
@@ -606,7 +608,7 @@ int reconocerTeclado() {
 
 	tecla = getch();
 
-	if (tecla == 7) salida = 0;
+	if (tecla == 'p' || tecla == 'P') salida = 0;
 	if (tecla == 'w' || tecla == 'W') salida = 1;
 	if (tecla == 'a' || tecla == 'A') salida = 2;
 	if (tecla == 'd' || tecla == 'D') salida = 3;
@@ -632,11 +634,11 @@ void mostrarMenuInicial() {
 	printf(".----------------.  .----------------.  .----------------.  .----------------.  .----------------.\n");
 	printf("| .--------------. || .--------------. || .--------------. || .--------------. || .--------------. |\n");
 	printf("| |     __       | || |    ______    | || |    ______    | || |     ____     | || |   _    _     | |\n");
-	printf("| |    /  |      | || |  .' ____ \   | || |   / ____ `.  | || |   .' __ '.   | || |  | |  | |    | |\n");
-	printf("| |    `| |      | || |  | |____\_|  | || |   `'  __) |  | || |   | (__) |   | || |  | |__| |_   | |\n");
+	printf("| |    /  |      | || |  .' ____ \\   | || |   / ____ `.  | || |   .' __ '.   | || |  | |  | |    | |\n");
+	printf("| |    `| |      | || |  | |____\\_|  | || |   `'  __) |  | || |   | (__) |   | || |  | |__| |_   | |\n");
 	printf("| |     | |      | || |  | '____`'.  | || |   _ | __ '.  | || |   .`____'.   | || |  |____   _|  | |\n");
-	printf("| |    _| |_     | || |  | (____) |  | || |  | \____) |  | || |  | (____) |  | || |      _| |_   | |\n");
-	printf("| |   |_____|    | || |  '.______.'  | || |   \______.'  | || |  `.______.'  | || |     |_____|  | |\n");
+	printf("| |    _| |_     | || |  | (____) |  | || |  | \\____) |  | || |  | (____) |  | || |      _| |_   | |\n");
+	printf("| |   |_____|    | || |  '.______.'  | || |   \\______.'  | || |  `.______.'  | || |     |_____|  | |\n");
 	printf("| |              | || |              | || |              | || |              | || |              | |\n");
 	printf("| '--------------' || '--------------' || '--------------' || '--------------' || '--------------' |\n");
 	printf("'----------------'  '----------------'  '----------------'  '----------------'  '----------------' \n\n");
@@ -656,10 +658,13 @@ void mostrarMenuPausa() {
 
 //	Imprime la matriz de juego
 //	-	Recorre las filas de la matriz de juego
-void imprimeMatriz(int *v, int m, int n) {//( m * n )
+void imprimeMatriz(int *p, int *v, int m, int n) {//( m * n )
 	int i, j, x;
 	int ws;//numero de espacios de caracteres por casilla
 	printf("\n");
+	system("cls");
+
+	printf("Puntuacion: %d \n", p[0]);
 	for (i = 0; i < m; i++) {//recorremos eje m
 		for (j = 0; j < n; j++) {//recorremos eje n
 			ws = WS;
@@ -674,7 +679,7 @@ void imprimeMatriz(int *v, int m, int n) {//( m * n )
 
 			switch (v[i*n + j]) {//	Modifica el color en el que se mostrarán los elementos
 			case 0:
-				Color(BLACK, BLACK);
+				Color(BLACK, RED);
 				break;
 			case 2:
 				Color(WHITE, BLACK);
@@ -733,8 +738,16 @@ void imprimeMatriz(int *v, int m, int n) {//( m * n )
 			}
 		}
 		printf("\n");
-		Color(BLACK, WHITE);
+		
 	}
+	Color(BLACK, RED);
+	printf("VIDAS: ");
+	for (int i = 0; i < VIDAS; i++) {
+		printf(" <3 ");
+	}
+	printf("\n");
+
+	Color(BLACK, WHITE);
 }
 
 //Solo para pruebas
@@ -819,28 +832,6 @@ int sumaPuntuacion(int *p, int m, int n) {
 	return out;
 }
 
-//	Ejecutamos una accion en funcion de la tecla pulsada
-void accionPausa() {
-	int tecla;
-
-	tecla = reconocerTeclado();
-
-	switch (tecla) {
-		//Salir sin guardar
-	case 4:
-		accionSalir();
-		break;
-		//Reanudar
-	case 5:
-		accionReanudar();
-		break;
-		//Guardar y salir
-	case 6:
-		accionGuardarSalir();
-		break;
-	}
-
-}
 
 //	Realizamos las sumas y los movimientos hacia arriba
 //	-	v Matriz de juego, p UN SOLO ENTERO CON LA PUNTUACIÓN,
@@ -851,7 +842,7 @@ cudaError_t accionArriba(int *v, int *p, int WidthM, int WidthN) {
 	int *dev_v = 0, *dev_p = 0;
 	bool *dev_b = 0;
 	dim3 dimGrid(1, 1);
-	dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
+	dim3 dimBlock(WidthM, WidthN);
 
 	int *h_p = (int*)malloc(WidthM * WidthN * sizeof(int));
 	bool *b = (bool*)malloc(WidthM * WidthN * sizeof(bool));
@@ -884,7 +875,7 @@ cudaError_t accionArriba(int *v, int *p, int WidthM, int WidthN) {
 
 	//	Sumamos las fichas que se puedan juntar
 
-	SumaArb << <dimGrid, dimBlock >> > (dev_v, dev_p, WidthM, WidthN);
+	SumaArb <<<dimGrid, dimBlock >>>(dev_v, dev_p, WidthM, WidthN);
 
 	// Check for any errors launching the kernel
 	cudaStatus = cudaGetLastError();
@@ -930,7 +921,7 @@ cudaError_t accionArriba(int *v, int *p, int WidthM, int WidthN) {
 
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			fprintf(stderr, "2_addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
 			goto FreeArb;
 		}
 
@@ -946,7 +937,7 @@ cudaError_t accionArriba(int *v, int *p, int WidthM, int WidthN) {
 
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			fprintf(stderr, "3_addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
 			goto FreeArb;
 		}
 
@@ -990,7 +981,7 @@ cudaError_t accionIzquierda(int *v, int *p, int WidthM, int WidthN) {
 	int *dev_v = 0, *dev_p = 0;
 	bool *dev_b = 0;
 	dim3 dimGrid(1, 1);
-	dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
+	dim3 dimBlock(WidthM, WidthN);
 
 	int *h_p = (int*)malloc(WidthM * WidthN * sizeof(int));
 	bool *b = (bool*)malloc(WidthM * WidthN * sizeof(bool));
@@ -1028,7 +1019,7 @@ cudaError_t accionIzquierda(int *v, int *p, int WidthM, int WidthN) {
 	// Check for any errors launching the kernel
 	cudaStatus = cudaGetLastError();
 	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+		fprintf(stderr, "1_addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
 		goto FreeIzq;
 	}
 
@@ -1069,7 +1060,7 @@ cudaError_t accionIzquierda(int *v, int *p, int WidthM, int WidthN) {
 
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			fprintf(stderr, "2_addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
 			goto FreeIzq;
 		}
 
@@ -1085,7 +1076,7 @@ cudaError_t accionIzquierda(int *v, int *p, int WidthM, int WidthN) {
 
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			fprintf(stderr, "3_addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
 			goto FreeIzq;
 		}
 
@@ -1129,7 +1120,7 @@ cudaError_t accionDerecha(int *v, int *p, int WidthM, int WidthN) {
 	int *dev_v = 0, *dev_p = 0;
 	bool *dev_b = 0;
 	dim3 dimGrid(1, 1);
-	dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
+	dim3 dimBlock(WidthM, WidthN);
 
 	int *h_p = (int*)malloc(WidthM * WidthN * sizeof(int));
 	bool *b = (bool*)malloc(WidthM * WidthN * sizeof(bool));
@@ -1167,7 +1158,7 @@ cudaError_t accionDerecha(int *v, int *p, int WidthM, int WidthN) {
 	// Check for any errors launching the kernel
 	cudaStatus = cudaGetLastError();
 	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+		fprintf(stderr, "1_addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
 		goto FreeDch;
 	}
 
@@ -1208,7 +1199,7 @@ cudaError_t accionDerecha(int *v, int *p, int WidthM, int WidthN) {
 
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			fprintf(stderr, "2_addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
 			goto FreeDch;
 		}
 
@@ -1224,7 +1215,7 @@ cudaError_t accionDerecha(int *v, int *p, int WidthM, int WidthN) {
 
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			fprintf(stderr, "3_addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
 			goto FreeDch;
 		}
 
@@ -1268,7 +1259,7 @@ cudaError_t accionAbajo(int *v, int *p, int WidthM, int WidthN) {
 	int *dev_v = 0, *dev_p = 0;
 	bool *dev_b = 0;
 	dim3 dimGrid(1, 1);
-	dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
+	dim3 dimBlock(WidthM, WidthN);
 
 	int *h_p = (int*)malloc(WidthM * WidthN * sizeof(int));
 	bool *b = (bool*)malloc(WidthM * WidthN * sizeof(bool));
@@ -1402,21 +1393,46 @@ FreeAbj:
 
 //Salimos del juego sin guardar partida
 void accionSalir() {
-
+	printf("Salir \n");
+	exit(-1);
 }
 
 //Volvemos al juego
 void accionReanudar() {
-
+	printf("Reanudar \n");
 }
 
 //Guardamos el progreso y salimos
 void accionGuardarSalir() {
+	printf("Guardar y salir \n");
+	exit(-1);
+}
+
+//	Ejecutamos una accion en funcion de la tecla pulsada
+void accionPausa() {
+	int tecla;
+
+	tecla = reconocerTeclado();
+
+	switch (tecla) {
+		//Salir sin guardar
+		case 4:
+			accionSalir();
+			break;
+		//Reanudar
+		case 5:
+			accionReanudar();
+			break;
+		//Guardar y salir
+		case 6:
+			accionGuardarSalir();
+			break;
+	}
 
 }
 
 void modoAutomatico() {
-
+	printf("Modo automatico");
 }
 
 void modoManual(int dificultad, int WidthM, int WidthN) {
@@ -1425,6 +1441,9 @@ void modoManual(int dificultad, int WidthM, int WidthN) {
 	int *dev_v = 0;
 	int *p = (int*)malloc(sizeof(int));
 	int x, y, valor;
+
+	dim3 dimGrid(1, 1);
+	dim3 dimBlock(WidthM, WidthN);
 
 	cudaError_t cudaStatus;
 
@@ -1442,7 +1461,30 @@ void modoManual(int dificultad, int WidthM, int WidthN) {
 		goto FreeMan;
 	}
 
+	cudaStatus = cudaMemcpy(dev_v, v, WidthM * WidthN * sizeof(int), cudaMemcpyHostToDevice);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto FreeMan;
+	}
+
 	Inicializador << <dimGrid, dimBlock >> > (dev_v, WidthM, WidthN);
+
+	// cudaDeviceSynchronize waits for the kernel to finish, and returns
+	// any errors encountered during the launch.
+	cudaStatus = cudaDeviceSynchronize();
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+		goto FreeMan;
+	}
+
+	// Copy output vector from GPU buffer to host memory.
+	cudaStatus = cudaMemcpy(v, dev_v, WidthM * WidthN * sizeof(int), cudaMemcpyDeviceToHost);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto FreeMan;
+	}
+
+	imprimeMatriz(p,v, WidthM, WidthN);
 
 	cudaStatus = cudaGetLastError();
 	if (cudaStatus != cudaSuccess) {
@@ -1455,6 +1497,7 @@ void modoManual(int dificultad, int WidthM, int WidthN) {
 		goto FreeMan;
 	}
 
+	//Introducimos las semillas en funcion de la dificultad
 	if (dificultad==1) {
 		for (int i = 0; i < 15; i++) {
 			do {
@@ -1470,7 +1513,7 @@ void modoManual(int dificultad, int WidthM, int WidthN) {
 				x = rand() % WidthN;
 				y = rand() % WidthM;
 				valor = BAJO[rand() % 2];
-			} while (IntroCasilla(v, WidthN, x, y, valor));
+			} while (!IntroCasilla(v, WidthN, x, y, valor));
 		}
 	}
 
@@ -1509,8 +1552,32 @@ void modoManual(int dificultad, int WidthM, int WidthN) {
 			break;
 		}
 
-		imprimeMatriz(v,WidthM,WidthN);
+		//Metemos nuevas semillas despues de realizar cada movimiento
+		if (dificultad == 1) {
+			for (int i = 0; i < 15; i++) {
+				do {
+					x = rand() % WidthN;
+					y = rand() % WidthM;
+					valor = BAJO[rand() % 3];
+				} while (!IntroCasilla(v, WidthN, x, y, valor));
+			}
+		}
+		else if (dificultad == 2) {
+			for (int i = 0; i < 8; i++) {
+				do {
+					x = rand() % WidthN;
+					y = rand() % WidthM;
+					valor = BAJO[rand() % 2];
+				} while (!IntroCasilla(v, WidthN, x, y, valor));
+			}
+		}
+
+		imprimeMatriz(p, v, WidthM, WidthN);
 	} while (checkLleno(v, WidthM, WidthN));
+
+	if (!checkLleno(v, WidthM, WidthN)) {
+		VIDAS--;
+	}
 	
 
 //Morgan
@@ -1526,13 +1593,18 @@ int main(int argc, char** argv) {
 	//Mostramos el menú inicial y procedemos a jugar
 	mostrarMenuInicial();
 
+
+	//Modo Automatico
 	if (strcmp(argv[1],"-a")==0) {
-		//Modo Automatico
+
 		modoAutomatico();
 	}
+
+	//Modo Manual
 	else if(strcmp(argv[1], "-m") == 0){
-		//Modo Manual
-		modoManual(atoi(argv[2]),atoi(argv[3]), atoi(argv[4]));
+		do {
+			modoManual(atoi(argv[2]), atoi(argv[3]), atoi(argv[4]));
+		} while (VIDAS>0);		
 	}
 	
 }
@@ -1542,7 +1614,7 @@ int main(int argc, char** argv) {
 
 //--------------------------------- Inicialización Ejemplo de VS2015 --------------------------------------------
 
-cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
+/*cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
 
 __global__ void addKernel(int *c, const int *a, const int *b)
 {
@@ -1675,16 +1747,5 @@ Error:
 	cudaFree(dev_b);
 
 	return cudaStatus;
-}
-© 2019 GitHub, Inc.
-Terms
-Privacy
-Security
-Status
-Help
-Contact GitHub
-Pricing
-API
-Training
-Blog
-About
+}*/
+
