@@ -1,3 +1,4 @@
+
 /* Autores:
  *	Daniel López Moreno
  *	Diego-Edgar Gracia Peña
@@ -19,9 +20,11 @@
 #include <fstream>
 #include <iostream>
 #include <string>
-using namespace std;
+	using namespace std;
 
 const int WS = 6;
+int BAJO[] = { 2, 4, 8 };
+int ALTO[] = { 2, 4 };
 int TILE_WIDTH = 0;
 char FICHERO[] = "16384.sav";
 
@@ -40,8 +43,7 @@ char FICHERO[] = "16384.sav";
 
 //	Inicializador de la matriz de juego
 //	-	*m Matriz en forma vectorial con la que se trabaja, WidthM y WidthN su tamaño de columna y fila
-//	-	x e y, las coordenadas del elemento que se iniciará al menor entero positivo válido
-__global__ void Inicializador(int *m, int WidthM, int WidthN, int x, int y) {
+__global__ void Inicializador(int *m, int WidthM, int WidthN) {
 	//obtención id del hilo
 	int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
@@ -50,8 +52,7 @@ __global__ void Inicializador(int *m, int WidthM, int WidthN, int x, int y) {
 	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
 
 	if (id_fil < WidthM && id_col < WidthN) {//Comprobación de que el hilo esté dentro de los límites
-		if (x == id_col && y == id_fil) m[id_fil*WidthN + id_col] = 2;
-		else m[id_fil*WidthN + id_col] = 0;
+		m[id_fil*WidthN + id_col] = 0;
 	}
 }
 
@@ -483,6 +484,17 @@ void Color(int fondo, int fuente) {
 
 }
 
+//	Inicializador de la matriz de juego
+//	-	*m Matriz en forma vectorial con la que se trabaja, WidthM y WidthN su tamaño de columna y fila
+//	-	x e y, las coordenadas del elemento que se introducira con el valor indicado
+bool IntroCasilla(int *m, int WidthN, int x, int y, int valor) {
+	bool out = m[y*WidthN + x] == 0;
+
+	if (out) m[y*WidthN + x] = valor;
+
+	return out;
+}
+
 void obtenerCaracteristicas(int n_columnas, int n_filas) {
 	cudaDeviceProp prop;
 	cudaGetDeviceProperties(&prop, 0);
@@ -736,10 +748,8 @@ for (i = 0; i < m; i++) {//recorremos eje m
 for (j = 0; j < n; j++) {//recorremos eje n
 ws = WS;
 x = v[i*n + j];
-
 if (v[i*n + j]) { printf("True"); ws = ws - 4; }
 else { printf("False"); ws = ws - 5; }
-
 while (ws > 0) {//y ocupamos el resto de huecos con espacios en blanco
 printf(" ");
 ws--;
@@ -774,6 +784,20 @@ bool checkMatrizBool(bool *b, int m, int n) {
 	for (i = 0; i < m; i++) {
 		for (j = 0; j < n; j++) {
 			out = out || b[i*n + j];
+		}
+	}
+
+	return out;
+}
+
+//	Comprueba si hay al menos una casilla vacia
+bool checkLleno(int *v, int m, int n) {
+	bool out = false;
+	int i, j;
+
+	for (i = 0; i < m; i++) {
+		for (j = 0; j < n; j++) {
+			out = out || (v[i*n + j] == 0);
 		}
 	}
 
@@ -826,11 +850,11 @@ cudaError_t accionArriba(int *v, int *p, int WidthM, int WidthN) {
 	cudaError_t cudaStatus;
 	int *dev_v = 0, *dev_p = 0;
 	bool *dev_b = 0;
-	dim3 dimGrid(1,1);
+	dim3 dimGrid(1, 1);
 	dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
 
-	int *h_p = (int*) malloc(WidthM * WidthN * sizeof(int));
-	bool *b = (bool*) malloc(WidthM * WidthN * sizeof(bool));
+	int *h_p = (int*)malloc(WidthM * WidthN * sizeof(int));
+	bool *b = (bool*)malloc(WidthM * WidthN * sizeof(bool));
 
 	// Choose which GPU to run on, change this on a multi-GPU system.
 	cudaStatus = cudaSetDevice(0);
@@ -851,7 +875,7 @@ cudaError_t accionArriba(int *v, int *p, int WidthM, int WidthN) {
 		fprintf(stderr, "cudaMalloc failed!");
 		goto FreeArb;
 	}
-	
+
 	cudaStatus = cudaMemcpy(dev_v, v, WidthM * WidthN * sizeof(int), cudaMemcpyHostToDevice);
 	if (cudaStatus != cudaSuccess) {
 		fprintf(stderr, "cudaMemcpy failed!");
@@ -1391,46 +1415,126 @@ void accionGuardarSalir() {
 
 }
 
-int main() {
+void modoAutomatico() {
 
+}
+
+void modoManual(int dificultad, int WidthM, int WidthN) {
 	int teclaPulsada;
+	int *v = (int*) malloc(WidthM*WidthN*sizeof(int));
+	int *dev_v = 0;
+	int *p = (int*)malloc(sizeof(int));
+	int x, y, valor;
 
-	//Mostramos el menú inicial y procedemos a jugar
-	mostrarMenuInicial();
+	cudaError_t cudaStatus;
 
-	teclaPulsada = reconocerTeclado();
-	switch (teclaPulsada) {
+	// Choose which GPU to run on, change this on a multi-GPU system.
+	cudaStatus = cudaSetDevice(0);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
+		goto FreeMan;
+	}
 
-		//Menu de Pausa
+	// Allocate GPU buffers
+	cudaStatus = cudaMalloc((void**)&dev_v, WidthM * WidthN * sizeof(int));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc failed!");
+		goto FreeMan;
+	}
+
+	Inicializador << <dimGrid, dimBlock >> > (dev_v, WidthM, WidthN);
+
+	cudaStatus = cudaGetLastError();
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+		goto FreeMan;
+	}
+	cudaStatus = cudaDeviceSynchronize();
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+		goto FreeMan;
+	}
+
+	if (dificultad==1) {
+		for (int i = 0; i < 15; i++) {
+			do {
+				x = rand() % WidthN;
+				y = rand() % WidthM;
+				valor = BAJO[rand() % 3];
+			} while (!IntroCasilla(v, WidthN, x, y, valor));
+		}
+	}
+	else if (dificultad==2) {
+		for (int i = 0; i < 8; i++) {
+			do {
+				x = rand() % WidthN;
+				y = rand() % WidthM;
+				valor = BAJO[rand() % 2];
+			} while (IntroCasilla(v, WidthN, x, y, valor));
+		}
+	}
+
+	do {
+		teclaPulsada = reconocerTeclado();
+		switch (teclaPulsada) {
+
+			//Menu de Pausa
 		case 0:
 			mostrarMenuPausa();
 			accionPausa();
 			break;
 
-		//Arriba
+			//Arriba
 		case 1:
-			accionArriba();
+			cudaStatus= accionArriba(v, p, WidthM, WidthN);
 			break;
 
-		//Izquierda
+			//Izquierda
 		case 2:
-			accionIzquierda();
+			cudaStatus = accionIzquierda(v, p, WidthM, WidthN);
 			break;
 
-		//Derecha
+			//Derecha
 		case 3:
-			accionDerecha();
+			cudaStatus = accionDerecha(v, p, WidthM, WidthN);
 			break;
 
-		//Abajo
+			//Abajo
 		case 4:
-			accionAbajo();
+			cudaStatus = accionAbajo(v, p, WidthM, WidthN);
 			break;
 
-		//Defecto
+			//Defecto
 		default:
 			break;
+		}
+
+		imprimeMatriz(v,WidthM,WidthN);
+	} while (checkLleno(v, WidthM, WidthN));
+	
+
+//Morgan
+FreeMan:
+	cudaFree(dev_v);
+	free(v);
+	free(p);
+
+}
+
+int main(int argc, char** argv) {
+
+	//Mostramos el menú inicial y procedemos a jugar
+	mostrarMenuInicial();
+
+	if (strcmp(argv[1],"-a")==0) {
+		//Modo Automatico
+		modoAutomatico();
 	}
+	else if(strcmp(argv[1], "-m") == 0){
+		//Modo Manual
+		modoManual(atoi(argv[2]),atoi(argv[3]), atoi(argv[4]));
+	}
+	
 }
 
 
@@ -1442,14 +1546,14 @@ cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
 
 __global__ void addKernel(int *c, const int *a, const int *b)
 {
-    int i = threadIdx.x;
-    c[i] = a[i] + b[i];
+	int i = threadIdx.x;
+	c[i] = a[i] + b[i];
 }
 
 int main()
 {
 	int Width = 5;
-	int M[5*5];
+	int M[5 * 5];
 
 	for (int i = 0; i < 5; i++) {
 		for (int j = 0; j < 5; j++) {
@@ -1465,110 +1569,122 @@ int main()
 	}
 	printf("colorines");
 
-	imprimeMatriz(M,Width,Width);
+	imprimeMatriz(M, Width, Width);
 
-    const int arraySize = 5;
-    const int a[arraySize] = { 1, 2, 3, 4, 5 };
-    const int b[arraySize] = { 10, 20, 30, 40, 50 };
-    int c[arraySize] = { 0 };
+	const int arraySize = 5;
+	const int a[arraySize] = { 1, 2, 3, 4, 5 };
+	const int b[arraySize] = { 10, 20, 30, 40, 50 };
+	int c[arraySize] = { 0 };
 
-    // Add vectors in parallel.
-    cudaError_t cudaStatus = addWithCuda(c, a, b, arraySize);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "addWithCuda failed!");
-        return 1;
-    }
+	// Add vectors in parallel.
+	cudaError_t cudaStatus = addWithCuda(c, a, b, arraySize);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "addWithCuda failed!");
+		return 1;
+	}
 
 	printf("{1,2,3,4,5} + {10,20,30,40,50} ={%d, %d, %d, %d, %d}\n",
-        c[0], c[1], c[2], c[3], c[4]);
+		c[0], c[1], c[2], c[3], c[4]);
 
-    // cudaDeviceReset must be called before exiting in order for profiling and
-    // tracing tools such as Nsight and Visual Profiler to show complete traces.
-    cudaStatus = cudaDeviceReset();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceReset failed!");
-        return 1;
-    }
+	// cudaDeviceReset must be called before exiting in order for profiling and
+	// tracing tools such as Nsight and Visual Profiler to show complete traces.
+	cudaStatus = cudaDeviceReset();
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaDeviceReset failed!");
+		return 1;
+	}
 
-    return 0;
+	return 0;
 }
 
 // Helper function for using CUDA to add vectors in parallel.
 cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size)
 {
-    int *dev_a = 0;
-    int *dev_b = 0;
-    int *dev_c = 0;
-    cudaError_t cudaStatus;
+	int *dev_a = 0;
+	int *dev_b = 0;
+	int *dev_c = 0;
+	cudaError_t cudaStatus;
 
-    // Choose which GPU to run on, change this on a multi-GPU system.
-    cudaStatus = cudaSetDevice(0);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
-        goto Error;
-    }
+	// Choose which GPU to run on, change this on a multi-GPU system.
+	cudaStatus = cudaSetDevice(0);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
+		goto Error;
+	}
 
-    // Allocate GPU buffers for three vectors (two input, one output)    .
-    cudaStatus = cudaMalloc((void**)&dev_c, size * sizeof(int));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
-        goto Error;
-    }
+	// Allocate GPU buffers for three vectors (two input, one output)    .
+	cudaStatus = cudaMalloc((void**)&dev_c, size * sizeof(int));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc failed!");
+		goto Error;
+	}
 
-    cudaStatus = cudaMalloc((void**)&dev_a, size * sizeof(int));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
-        goto Error;
-    }
+	cudaStatus = cudaMalloc((void**)&dev_a, size * sizeof(int));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc failed!");
+		goto Error;
+	}
 
-    cudaStatus = cudaMalloc((void**)&dev_b, size * sizeof(int));
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMalloc failed!");
-        goto Error;
-    }
+	cudaStatus = cudaMalloc((void**)&dev_b, size * sizeof(int));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc failed!");
+		goto Error;
+	}
 
-    // Copy input vectors from host memory to GPU buffers.
-    cudaStatus = cudaMemcpy(dev_a, a, size * sizeof(int), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        goto Error;
-    }
+	// Copy input vectors from host memory to GPU buffers.
+	cudaStatus = cudaMemcpy(dev_a, a, size * sizeof(int), cudaMemcpyHostToDevice);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto Error;
+	}
 
-    cudaStatus = cudaMemcpy(dev_b, b, size * sizeof(int), cudaMemcpyHostToDevice);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        goto Error;
-    }
+	cudaStatus = cudaMemcpy(dev_b, b, size * sizeof(int), cudaMemcpyHostToDevice);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto Error;
+	}
 
-    // Launch a kernel on the GPU with one thread for each element.
-    addKernel<<<1, size>>>(dev_c, dev_a, dev_b);
+	// Launch a kernel on the GPU with one thread for each element.
+	addKernel << <1, size >> > (dev_c, dev_a, dev_b);
 
-    // Check for any errors launching the kernel
-    cudaStatus = cudaGetLastError();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-        goto Error;
-    }
-    
-    // cudaDeviceSynchronize waits for the kernel to finish, and returns
-    // any errors encountered during the launch.
-    cudaStatus = cudaDeviceSynchronize();
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
-        goto Error;
-    }
+	// Check for any errors launching the kernel
+	cudaStatus = cudaGetLastError();
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+		goto Error;
+	}
 
-    // Copy output vector from GPU buffer to host memory.
-    cudaStatus = cudaMemcpy(c, dev_c, size * sizeof(int), cudaMemcpyDeviceToHost);
-    if (cudaStatus != cudaSuccess) {
-        fprintf(stderr, "cudaMemcpy failed!");
-        goto Error;
-    }
+	// cudaDeviceSynchronize waits for the kernel to finish, and returns
+	// any errors encountered during the launch.
+	cudaStatus = cudaDeviceSynchronize();
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+		goto Error;
+	}
+
+	// Copy output vector from GPU buffer to host memory.
+	cudaStatus = cudaMemcpy(c, dev_c, size * sizeof(int), cudaMemcpyDeviceToHost);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto Error;
+	}
 
 Error:
-    cudaFree(dev_c);
-    cudaFree(dev_a);
-    cudaFree(dev_b);
-    
-    return cudaStatus;
+	cudaFree(dev_c);
+	cudaFree(dev_a);
+	cudaFree(dev_b);
+
+	return cudaStatus;
 }
+© 2019 GitHub, Inc.
+Terms
+Privacy
+Security
+Status
+Help
+Contact GitHub
+Pricing
+API
+Training
+Blog
+About
