@@ -566,24 +566,9 @@ bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, int *vidas, i
 	char *token; //tokens de la matriz
 	int k; //contador de acceso a la matriz
 	ifstream entrada(s, ios::binary); //Fichero de entrada
-	bool out = entrada.is_open(); //Si ha logrado abrir el archivo
+	bool out = entrada.is_open(); //Si ha logrado abrir el archivo y no ha resultado erroneo la carga de datos
 
 	if (out) {
-		//	Carga de la matriz de juego
-		if (getline(entrada, linea, ';')) {//	Toma hasta el ';'
-			c = (char*)malloc(linea.size() * sizeof(char));
-			strcpy(c, linea.c_str());//	Pasamos a char para trabajar con ello
-			token = strtok(c, " ,");//	Extraemos los numeros con Tokens
-			k = 0;	//	Contador a 0
-
-			while (token != NULL) {
-				v[k] = atoi(token);//	Introducimos el cada numero en la matriz obteniendo Tokens
-				k++;
-				token = strtok(NULL, " ,");
-			}
-
-			free((void *)c);//	liberamos la memoria reservada para el char *
-		}
 		//	Carga del numero de filas de la matriz de juego
 		if (getline(entrada, linea, ';')) {
 			c = (char*)malloc(linea.size() * sizeof(char));
@@ -591,6 +576,7 @@ bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, int *vidas, i
 			*WidthM = atoi(c);
 			free((void *)c);
 		}
+		else out = false;
 		//	Carga del numero de columnas de la matriz de juego
 		if (getline(entrada, linea, ';')) {
 			c = (char*)malloc(linea.size() * sizeof(char));
@@ -598,6 +584,7 @@ bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, int *vidas, i
 			*WidthN = atoi(c);
 			free((void *)c);
 		}
+		else out = false;
 		//	Carga de la puntuación
 		if (getline(entrada, linea, ';')) {
 			c = (char*)malloc(linea.size() * sizeof(char));
@@ -605,6 +592,7 @@ bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, int *vidas, i
 			*puntuacion = atoi(c);
 			free((void *)c);
 		}
+		else out = false;
 		//	Carga el numero de vidas
 		if (getline(entrada, linea, ';')) {
 			c = (char*)malloc(linea.size() * sizeof(char));
@@ -612,6 +600,7 @@ bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, int *vidas, i
 			*vidas = atoi(c);
 			free((void *)c);
 		}
+		else out = false;
 		//	Carga la dificultad
 		if (getline(entrada, linea, ';')) {
 			c = (char*)malloc(linea.size() * sizeof(char));
@@ -619,6 +608,7 @@ bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, int *vidas, i
 			*dificultad = atoi(c);
 			free((void *)c);
 		}
+		else out = false;
 		//	Carga el modo
 		if (getline(entrada, linea, ';')) {
 			c = (char*)malloc(linea.size() * sizeof(char));
@@ -627,8 +617,26 @@ bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, int *vidas, i
 			MODO[1] = c[1];
 			free((void *)c);
 		}
+		else out = false;
+		//	Carga de la matriz de juego
+		if (getline(entrada, linea, ';')) {//	Toma hasta el ';'
+			c = (char*)malloc(linea.size() * sizeof(char));
+			strcpy(c, linea.c_str());//	Pasamos a char para trabajar con ello
+			token = strtok(c, " ,");//	Extraemos los numeros con Tokens
+			k = *WidthM * *WidthN;	//	longitud de v
+			v = (int *)malloc(k * sizeof(int));
+
+			while (token != NULL) {
+				v[k] = atoi(token);//	Introducimos el cada numero en la matriz obteniendo Tokens
+				token = strtok(NULL, " ,");
+			}
+
+			free((void *)c);//	liberamos la memoria reservada para el char *
+		}
+		else out = false;
 
 		entrada.close();//Cerramos el archivo
+		if (!out) fprintf(stderr, "Fallo al cargar los datos de guardado\n");
 	}
 	else fprintf(stderr, "Fallo al intentar abrir el archivo de guardado\n");
 
@@ -643,12 +651,13 @@ void guardaDatos(int *v, int WidthM, int WidthN, int puntuacion, int vidas, int 
 	int Width = WidthM * WidthN;//	Numero de elementos de la matriz de juego
 	salida.open(s);//	Abrimos el fichero
 	if (salida.is_open()) {
+		//	El resto de los datos los grabamos separandolos con ';'
+		salida << WidthM << ";" << WidthN << ";" << puntuacion << ";" << vidas << ";" << dificultad << ";" << MODO << ";";
 		for (int i = 0; i < Width; i++) {	//	Recorremos la matriz y
 			salida << v[i];					//	vamos grabando los elementos en el archivo
 			if (i < Width - 1) salida << ",";//	separando con ','
 		}
-		//	El resto de los datos los grabamos separandolos con ';'
-		salida << ";" << WidthM << ";" << WidthN << ";" << puntuacion << ";" << vidas << ";" << dificultad << ";" << MODO << ";";
+		salida << ";";
 
 		salida.close();//	Cerramos el archivo
 	}
@@ -1589,21 +1598,12 @@ void modoAutomatico() {
 	printf("Modo automatico");
 }
 
-void modoManual(int *v, int dificultad, int WidthM, int WidthN) {
+void modoManual(int *v, int dificultad, int *puntuacion, int WidthM, int WidthN) {
 	int teclaPulsada;
 	int *p = (int*) malloc(sizeof(int));
 	cudaError_t cudaStatus;
 
-	*p = 0;
-
-
-	//imprimeMatriz(p, v, WidthM, WidthN);
-	//printf("Matriz Generada\n");
-
-	introSemilla(v, WidthM, WidthN, dificultad);
-
-	//imprimeMatriz(p, v, WidthM, WidthN);
-	//printf("Semilla metida\n");
+	p = puntuacion;
 
 	do {
 
@@ -1665,7 +1665,7 @@ FreeMan:
 	free(p);
 }
 
-cudaError_t iniciaMatriz(int *v, int WidthM, int WidthN) {
+cudaError_t iniciaMatriz(int *v, int WidthM, int WidthN, int dificultad) {
 	int *dev_v = 0;
 
 	dim3 dimGrid(1, 1);
@@ -1713,8 +1713,10 @@ cudaError_t iniciaMatriz(int *v, int WidthM, int WidthN) {
 		goto FreeIni;
 	}
 
+	introSemilla(v, WidthM, WidthN, dificultad);
+
 FreeIni:
-	cudaFree(dev_v);
+	cudaFree((void *) dev_v);
 
 	return cudaStatus;
 }
@@ -1744,7 +1746,7 @@ int main(int argc, char** argv) {
 				strcpy(MODO, argv[1]);
 				v = (int*)malloc(WidthM*WidthN * sizeof(int));
 
-				iniciaMatriz(v, WidthM, WidthN);
+				iniciaMatriz(v, WidthM, WidthN, dificultad);
 				break;
 			case 2:
 				exit(0);
@@ -1763,14 +1765,14 @@ int main(int argc, char** argv) {
 			strcpy(MODO, argv[1]);
 			v = (int*)malloc(WidthM*WidthN * sizeof(int));
 
-			iniciaMatriz(v, WidthM, WidthN);
+			iniciaMatriz(v, WidthM, WidthN, dificultad);
 		}
 	}
 
 		printf("\n\n%d, %d, %d, %d, %s\n", WidthM, WidthN, dificultad, VIDAS, MODO);
 		getch();
 
-		
+		imprimeMatriz(&punt, v, WidthM, WidthN);
 
 	//Modo Automatico
 	if (strcmp(MODO, "-a") == 0) {
@@ -1781,11 +1783,11 @@ int main(int argc, char** argv) {
 	//Modo Manual
 	else if (strcmp(MODO, "-m") == 0) {
 		do {
-			modoManual(v, dificultad, WidthM, WidthN);
+			modoManual(v, dificultad, &punt, WidthM, WidthN);
 		} while (VIDAS>0);
 	}
 
-	free(v);
+	free((void *) v);
 }
 
 
