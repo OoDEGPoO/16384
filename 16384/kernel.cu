@@ -26,6 +26,7 @@ const int WS = 6;
 int BAJO[] = { 2, 4, 8 };
 int ALTO[] = { 2, 4 };
 int VIDAS = 5;
+char MODO[] = "-m";
 char FICHERO[] = "16384.sav";
 
 __device__ int TILE_WIDTH_M = 0;
@@ -559,12 +560,12 @@ void obtenerCaracteristicas(int n_columnas, int n_filas) {
 //	Carga los datos del Juego Guardados anteriormente
 //	-	v Matriz de Juego, WidthM y WidthN el tamaó de la matriz de juego,
 //	-	puntuacion de juego acumulada y s el nombre del archivo de guardado
-bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, char *s) {
+bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, int *vidas, int *dificultad, char *s) {
 	string linea; //buffer de entrada
 	char *c; //cadena de char para transformación
 	char *token; //tokens de la matriz
 	int k; //contador de acceso a la matriz
-	ifstream entrada(s); //Fichero de entrada
+	ifstream entrada(s, ios::binary); //Fichero de entrada
 	bool out = entrada.is_open(); //Si ha logrado abrir el archivo
 
 	if (out) {
@@ -581,28 +582,50 @@ bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, char *s) {
 				token = strtok(NULL, " ,");
 			}
 
-			free(c);//	liberamos la memoria reservada para el char *
+			free((void *)c);//	liberamos la memoria reservada para el char *
 		}
 		//	Carga del numero de filas de la matriz de juego
 		if (getline(entrada, linea, ';')) {
 			c = (char*)malloc(linea.size() * sizeof(char));
 			strcpy(c, linea.c_str());
 			*WidthM = atoi(c);
-			free(c);
+			free((void *)c);
 		}
 		//	Carga del numero de columnas de la matriz de juego
 		if (getline(entrada, linea, ';')) {
 			c = (char*)malloc(linea.size() * sizeof(char));
 			strcpy(c, linea.c_str());
 			*WidthN = atoi(c);
-			free(c);
+			free((void *)c);
 		}
 		//	Carga de la puntuación
 		if (getline(entrada, linea, ';')) {
 			c = (char*)malloc(linea.size() * sizeof(char));
 			strcpy(c, linea.c_str());
 			*puntuacion = atoi(c);
-			free(c);
+			free((void *)c);
+		}
+		//	Carga el numero de vidas
+		if (getline(entrada, linea, ';')) {
+			c = (char*)malloc(linea.size() * sizeof(char));
+			strcpy(c, linea.c_str());
+			*vidas = atoi(c);
+			free((void *)c);
+		}
+		//	Carga la dificultad
+		if (getline(entrada, linea, ';')) {
+			c = (char*)malloc(linea.size() * sizeof(char));
+			strcpy(c, linea.c_str());
+			*dificultad = atoi(c);
+			free((void *)c);
+		}
+		//	Carga el modo
+		if (getline(entrada, linea, ';')) {
+			c = (char*)malloc(linea.size() * sizeof(char));
+			strcpy(c, linea.c_str());
+			MODO[0] = c[0];
+			MODO[1] = c[1];
+			free((void *)c);
 		}
 
 		entrada.close();//Cerramos el archivo
@@ -615,7 +638,7 @@ bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, char *s) {
 //	Guarda los datos de juego en el archivo de guardado indicado
 //	-	v matriz de juego, WidthM y WidthN dimensiones de la matriz de juego,
 //	-	puntuación de la partida y nombre del archivo destino
-void guardaDatos(int *v, int WidthM, int WidthN, int puntuacion, char *s) {
+void guardaDatos(int *v, int WidthM, int WidthN, int puntuacion, int vidas, int dificultad, char *s) {
 	ofstream salida;//	Fichero de salida
 	int Width = WidthM * WidthN;//	Numero de elementos de la matriz de juego
 	salida.open(s);//	Abrimos el fichero
@@ -625,7 +648,7 @@ void guardaDatos(int *v, int WidthM, int WidthN, int puntuacion, char *s) {
 			if (i < Width - 1) salida << ",";//	separando con ','
 		}
 		//	El resto de los datos los grabamos separandolos con ';'
-		salida << ";" << WidthM << ";" << WidthN << ";" << puntuacion << ";";
+		salida << ";" << WidthM << ";" << WidthN << ";" << puntuacion << ";" << vidas << ";" << dificultad << ";" << MODO << ";";
 
 		salida.close();//	Cerramos el archivo
 	}
@@ -657,6 +680,8 @@ int reconocerTeclado() {
 			if (tecla == 77) {salida = 3; flag = false;}
 			if (tecla == 80) {salida = 4; flag = false;}
 		}
+
+		if (tecla == 13) {salida = 7; flag = false;}
 	} while (flag);
 
 	return salida;
@@ -679,6 +704,50 @@ void mostrarMenuInicial() {
 	printf("                       Created by: Diego-Edgar Gracia & Daniel Lopez                                \n\n");
 	printf("                                                                                                      ");
 
+}
+
+//	Mostramos menu de carga de datos
+int menuCargaDatos() {
+	bool flag = true;
+	int sel = 2;//	0 Cargar	/	1 Nueva	/	2 Salir
+	int tecla;
+
+	do {
+		system("cls");
+		Color(WHITE, BLACK);
+		printf("\tSe ha encontrado una partida anterior\n¿Deseas usar cargar esa partida?\n\n");
+		switch (sel)
+		{
+		case 0: Color(LCYAN, BLACK); printf("- Cargar Partida\n");
+			Color(BLACK, WHITE); printf("- Nueva Partida\n- Salir\n");
+			break;
+		case 1: Color(BLACK, WHITE); printf("- Cargar Partida\n");
+			Color(LCYAN, BLACK); printf("- Nueva Partida\n");
+			Color(BLACK, WHITE); printf("- Salir\n");
+			break;
+		case 2: Color(BLACK, WHITE); printf("- Cargar Partida\n- Nueva Partida\n");
+			Color(LCYAN, BLACK); printf("- Salir\n");
+			break;
+		default:
+			break;
+		}
+
+		switch (reconocerTeclado())
+		{
+		case 1: sel--;
+			if (sel < 0) sel = 2;
+			break;
+		case 4: sel++;
+			if (sel > 2) sel = 0;
+			break;
+		case 7: flag = false;
+			break;
+		default:
+			break;
+		}
+	} while (flag);
+
+	return sel;
 }
 
 //	Mostramos las opciones de pausa
@@ -1484,13 +1553,14 @@ void accionReanudar() {
 }
 
 //Guardamos el progreso y salimos
-void accionGuardarSalir() {
+void accionGuardarSalir(int *v, int WidthM, int WidthN, int puntuacion, int dificultad) {
 	printf("Guardar y salir \n");
+	guardaDatos(v, WidthM, WidthN, puntuacion, VIDAS, dificultad, FICHERO);
 	exit(-1);
 }
 
 //	Ejecutamos una accion en funcion de la tecla pulsada
-void accionPausa() {
+void accionPausa(int *v, int WidthM, int WidthN, int puntuacion, int dificultad) {
 	int tecla;
 	bool flag = true;
 
@@ -1509,7 +1579,7 @@ void accionPausa() {
 				break;
 			//Guardar y salir
 			case 6:
-				accionGuardarSalir();
+				accionGuardarSalir(v, WidthM, WidthN, puntuacion, dificultad);
 				break;
 		}
 	} while (flag);
@@ -1519,61 +1589,13 @@ void modoAutomatico() {
 	printf("Modo automatico");
 }
 
-void modoManual(int dificultad, int WidthM, int WidthN) {
+void modoManual(int *v, int dificultad, int WidthM, int WidthN) {
 	int teclaPulsada;
-	int *v = (int*) malloc(WidthM*WidthN*sizeof(int));
-	int *dev_v = 0;
 	int *p = (int*) malloc(sizeof(int));
+	cudaError_t cudaStatus;
 
 	*p = 0;
 
-	/*TILE_WIDTH_M = WidthM;
-	TILE_WIDTH_N = WidthN;*/
-
-	dim3 dimGrid(1, 1);
-	dim3 dimBlock(WidthM, WidthN);
-
-	cudaError_t cudaStatus;
-
-	// Choose which GPU to run on, change this on a multi-GPU system.
-	cudaStatus = cudaSetDevice(0);
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
-		goto FreeMan;
-	}
-
-	// Allocate GPU buffers
-	cudaStatus = cudaMalloc((void**)&dev_v, WidthM * WidthN * sizeof(int));
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMalloc failed!");
-		goto FreeMan;
-	}
-
-	cudaStatus = cudaMemcpy(dev_v, v, WidthM * WidthN * sizeof(int), cudaMemcpyHostToDevice);
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMemcpy failed!");
-		goto FreeMan;
-	}
-
-	Inicializador << <dimGrid, dimBlock >> > (dev_v, WidthM, WidthN);
-
-	cudaStatus = cudaGetLastError();
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "Inicializador launch failed: %s\n", cudaGetErrorString(cudaStatus));
-		goto FreeMan;
-	}
-	cudaStatus = cudaDeviceSynchronize();
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching Inicializador!\n", cudaStatus);
-		goto FreeMan;
-	}
-
-	// Copy output vector from GPU buffer to host memory.
-	cudaStatus = cudaMemcpy(v, dev_v, WidthM * WidthN * sizeof(int), cudaMemcpyDeviceToHost);
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMemcpy failed!");
-		goto FreeMan;
-	}
 
 	//imprimeMatriz(p, v, WidthM, WidthN);
 	//printf("Matriz Generada\n");
@@ -1593,7 +1615,7 @@ void modoManual(int dificultad, int WidthM, int WidthN) {
 			//Menu de Pausa
 		case 0:
 			mostrarMenuPausa();
-			accionPausa();
+			accionPausa(v, WidthM, WidthN, *p, dificultad);
 			break;
 
 			//Arriba
@@ -1639,31 +1661,131 @@ void modoManual(int dificultad, int WidthM, int WidthN) {
 
 //Morgan
 FreeMan:
-	cudaFree(dev_v);
 	free(v);
 	free(p);
+}
 
+cudaError_t iniciaMatriz(int *v, int WidthM, int WidthN) {
+	int *dev_v = 0;
+
+	dim3 dimGrid(1, 1);
+	dim3 dimBlock(WidthM, WidthN);
+
+	cudaError_t cudaStatus;
+
+	// Choose which GPU to run on, change this on a multi-GPU system.
+	cudaStatus = cudaSetDevice(0);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
+		goto FreeIni;
+	}
+
+	// Allocate GPU buffers
+	cudaStatus = cudaMalloc((void**)&dev_v, WidthM * WidthN * sizeof(int));
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMalloc iniciaMatriz failed!");
+		goto FreeIni;
+	}
+
+	cudaStatus = cudaMemcpy(dev_v, v, WidthM * WidthN * sizeof(int), cudaMemcpyHostToDevice);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto FreeIni;
+	}
+
+	Inicializador << <dimGrid, dimBlock >> > (dev_v, WidthM, WidthN);
+
+	cudaStatus = cudaGetLastError();
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "Inicializador launch failed: %s\n", cudaGetErrorString(cudaStatus));
+		goto FreeIni;
+	}
+	cudaStatus = cudaDeviceSynchronize();
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching Inicializador!\n", cudaStatus);
+		goto FreeIni;
+	}
+
+	// Copy output vector from GPU buffer to host memory.
+	cudaStatus = cudaMemcpy(v, dev_v, WidthM * WidthN * sizeof(int), cudaMemcpyDeviceToHost);
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "cudaMemcpy failed!");
+		goto FreeIni;
+	}
+
+FreeIni:
+	cudaFree(dev_v);
+
+	return cudaStatus;
 }
 
 int main(int argc, char** argv) {
-
 	//Mostramos el menú inicial y procedemos a jugar
 	mostrarMenuInicial();
 
+	int *v = 0, WidthM, WidthN, punt, vidas, dificultad;
+
+	if (argc < 5) {
+		if (cargaDatos(v, &WidthM, &WidthN, &punt, &vidas, &dificultad, FICHERO)) printf("Datos anteriores Cargados\n");
+	} else {
+		printf("antonio");
+		if (cargaDatos(v, &WidthM, &WidthN, &punt, &vidas, &dificultad, FICHERO)) {
+			printf("hay datos\n");
+			switch (menuCargaDatos()) {
+			case 0:
+				printf("cargo");
+				break;
+			case 1:
+				printf("nueva");
+				WidthM = atoi(argv[3]);
+				WidthN = atoi(argv[4]);
+				VIDAS = 5;
+				dificultad = atoi(argv[2]);
+				strcpy(MODO, argv[1]);
+				v = (int*)malloc(WidthM*WidthN * sizeof(int));
+
+				iniciaMatriz(v, WidthM, WidthN);
+				break;
+			case 2:
+				exit(0);
+				break;
+			default:
+				exit(-1);
+				break;
+			}
+		}
+		else {
+			printf("nueva");
+			WidthM = atoi(argv[3]);
+			WidthN = atoi(argv[4]);
+			VIDAS = 5;
+			dificultad = atoi(argv[2]);
+			strcpy(MODO, argv[1]);
+			v = (int*)malloc(WidthM*WidthN * sizeof(int));
+
+			iniciaMatriz(v, WidthM, WidthN);
+		}
+	}
+
+		printf("\n\n%d, %d, %d, %d, %s\n", WidthM, WidthN, dificultad, VIDAS, MODO);
+		getch();
+
+		
 
 	//Modo Automatico
-	if (strcmp(argv[1],"-a")==0) {
+	if (strcmp(MODO, "-a") == 0) {
 
 		modoAutomatico();
 	}
 
 	//Modo Manual
-	else if(strcmp(argv[1], "-m") == 0){
+	else if (strcmp(MODO, "-m") == 0) {
 		do {
-			modoManual(atoi(argv[2]), atoi(argv[3]), atoi(argv[4]));
-		} while (VIDAS>0);		
+			modoManual(v, dificultad, WidthM, WidthN);
+		} while (VIDAS>0);
 	}
-	
+
+	free(v);
 }
 
 
