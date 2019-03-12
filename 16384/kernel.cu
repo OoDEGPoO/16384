@@ -1,10 +1,10 @@
-
+Ôªø
 /* Autores:
- *	Daniel LÛpez Moreno
- *	Diego-Edgar Gracia PeÒa
+ *	Daniel L√≥pez Moreno
+ *	Diego-Edgar Gracia Pe√±a
  * Enunciado:
  *	Juego de 16384
- *		VersiÛn en CUDA del Juego 2048
+ *		Versi√≥n en CUDA del Juego 2048
  *
  * Sin Bloques ni Memoria Compartida
  */
@@ -26,11 +26,13 @@ const int WS = 6;
 int BAJO[] = { 2, 4, 8 };
 int ALTO[] = { 2, 4 };
 int VIDAS = 5;
-const int TILE_WIDTH = 0;
 char FICHERO[] = "16384.sav";
 
+__device__ int TILE_WIDTH_M = 0;
+__device__ int TILE_WIDTH_N = 0;
 
-//	Ejemplo de como quedarÌa la matriz
+
+//	Ejemplo de como quedar√≠a la matriz
 
 //		-	-	N	-	-
 //	|	00	01	02	03	04
@@ -43,16 +45,19 @@ char FICHERO[] = "16384.sav";
 //------------------------------------------ Device -----------------------------------------------
 
 //	Inicializador de la matriz de juego
-//	-	*m Matriz en forma vectorial con la que se trabaja, WidthM y WidthN su tamaÒo de columna y fila
+//	-	*m Matriz en forma vectorial con la que se trabaja, WidthM y WidthN su tama√±o de columna y fila
 __global__ void Inicializador(int *m, int WidthM, int WidthN) {
-	//obtenciÛn id del hilo
-	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	//obtenci√≥n id del hilo
+	/*int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
 	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
 	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+	*/
 
-	if (id_fil < WidthM && id_col < WidthN) {//ComprobaciÛn de que el hilo estÈ dentro de los lÌmites
+	int id_fil = threadIdx.y, id_col = threadIdx.x;
+
+	if (id_fil < WidthM && id_col < WidthN) {//Comprobaci√≥n de que el hilo est√© dentro de los l√≠mites
 		m[id_fil*WidthN + id_col] = 0;
 	}
 }
@@ -61,14 +66,17 @@ __global__ void Inicializador(int *m, int WidthM, int WidthN) {
 //	-	*b Matriz vectorial de booleanos, WidthM y WidthN dimensiones de columna y fila
 //	-	set el valor booleano a introducir
 __global__ void iniBool(bool *b, int WidthM, int WidthN, bool set) {
-	//obtenciÛn id del hilo
-	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	//obtenci√≥n id del hilo
+	/*int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
 	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
 	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+	*/
 
-	if (id_fil < WidthM && id_col < WidthN) {//ComprobaciÛn de que el hilo estÈ dentro de los lÌmites
+	int id_fil = threadIdx.y, id_col = threadIdx.x;
+
+	if (id_fil < WidthM && id_col < WidthN) {//Comprobaci√≥n de que el hilo est√© dentro de los l√≠mites
 
 		b[id_fil*WidthN + id_col] = set;//damos al elemento correspondiente el valor indicado
 
@@ -80,17 +88,20 @@ __global__ void iniBool(bool *b, int WidthM, int WidthN, bool set) {
 //	Cada hilo busca una pareja para su elemento correspondiente, y si es viable, realiza la suma
 //	-	Cada hilo recorre la matriz hacia la derecha buscando fichas como la suya viables para la suma
 //	-	para ello, cuenta cuantas coincidencias hay, si el numero es congruente con 0 mod 2,
-//	-	no se realizar· ninguna acciÛn por parte del hilo, si es congruente con 1 mod 2,
+//	-	no se realizar√° ninguna acci√≥n por parte del hilo, si es congruente con 1 mod 2,
 //	-	se multiplica por 2 el primer coincidente y se borra la ficha del hilo.
 //	-	Las coincidencias deben de ser inmediatas, solo permitiendose el 0 entre las fichas (0 == vacio)
-//	-	-	La puntuaciÛn se recoge en la matriz p
+//	-	-	La puntuaci√≥n se recoge en la matriz p
 __global__ void SumaDch(int *m, int *p, int WidthM, int WidthN) {
-	//obtenciÛn id del hilo
-	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	//obtenci√≥n id del hilo
+	/*int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
 	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
 	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+	*/
+
+	int id_fil = threadIdx.y, id_col = threadIdx.x;
 
 	int ficha, c = 0, aux, i;
 
@@ -98,7 +109,7 @@ __global__ void SumaDch(int *m, int *p, int WidthM, int WidthN) {
 	if (id_fil < WidthM && id_col < WidthN) {
 		ficha = m[id_fil*WidthN + id_col];
 
-		//si la ficha est· vacia, el hilo no buscar·
+		//si la ficha est√° vacia, el hilo no buscar√°
 		if (ficha != 0) {
 			//Se realiza la busqueda hacia la dch
 			for (i = id_col + 1; i < WidthN; i++) {
@@ -111,37 +122,40 @@ __global__ void SumaDch(int *m, int *p, int WidthM, int WidthN) {
 			//	Si el numero de coincidencias es congruente con 1 mod 2
 			//	se busca la primera coincidencia, se multiplica por 2 y se borra la ficha 
 			//	Si fuese congruente con 0 mod 2, no debe acceder al for
-			if ((c % 2) == 0) p[id_fil*WidthN + id_col] = 0;//	Si no opera, puntuaciÛn 0
+			if ((c % 2) == 0) p[id_fil*WidthN + id_col] = 0;//	Si no opera, puntuaci√≥n 0
 			for (i = id_col + 1; i < WidthN && (c % 2) == 1; i++) {
 				aux = m[id_fil*WidthN + i];
 				if (aux == ficha) {
 					m[id_fil*WidthN + i] = ficha * 2;
 					m[id_fil*WidthN + id_col] = 0;
-					p[id_fil*WidthN + id_col] = ficha * 2;//	Grabamos la puntuaciÛn obtenido con la suma
+					p[id_fil*WidthN + id_col] = ficha * 2;//	Grabamos la puntuaci√≥n obtenido con la suma
 					c--;//Para que el bucle for termine
 				}
 
-				//	(AclaraciÛn) Si estamos entrando en este bucle for,
+				//	(Aclaraci√≥n) Si estamos entrando en este bucle for,
 				//		significa que se ha encontrado una pareja viable anteriormente
-				//		por lo que no se filtra si se opera con una ficha no v·lida
+				//		por lo que no se filtra si se opera con una ficha no v√°lida
 			}
 		}
 		else p[id_fil*WidthN + id_col] = 0;
 	}
 }
 
-//	EjecuciÛn de Movimiento a la Derecha de las piezas
+//	Ejecuci√≥n de Movimiento a la Derecha de las piezas
 //	-	Cada hilo toma su ficha (si es distinta de 0) y busca espacios en blanco a su derecha
-//	-	Cuando no encuentra m·s huecos en la matriz, intercambia su ficha con la del ˙ltimo hueco hallado
-//	-	al ser 0, intercambia con una vacÌa, si no hubiese huecos a su derecha, la intercambia consigo mismo
-//	-	-	Esta funciÛn debe ser llamada hasta que no devuelva ning˙n cambio en la Matriz de Juego
+//	-	Cuando no encuentra m√°s huecos en la matriz, intercambia su ficha con la del √∫ltimo hueco hallado
+//	-	al ser 0, intercambia con una vac√≠a, si no hubiese huecos a su derecha, la intercambia consigo mismo
+//	-	-	Esta funci√≥n debe ser llamada hasta que no devuelva ning√∫n cambio en la Matriz de Juego
 __global__ void exMovDch(int *m, bool *b, int WidthM, int WidthN) {
-	//obtenciÛn id del hilo
-	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	//obtenci√≥n id del hilo
+	/*int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
 	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
 	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+	*/
+
+	int id_fil = threadIdx.y, id_col = threadIdx.x;
 
 	int ficha, id_aux = id_col;
 
@@ -149,23 +163,23 @@ __global__ void exMovDch(int *m, bool *b, int WidthM, int WidthN) {
 	if (id_fil < WidthM && id_col < WidthN) {
 		ficha = m[id_fil*WidthN + id_col];
 
-		if (ficha != 0) {//si es 0, no hay que hacer ning˙n movimiento
+		if (ficha != 0) {//si es 0, no hay que hacer ning√∫n movimiento
 			for (int i = id_col + 1; i < WidthN; i++) {
 				if (m[id_fil*WidthN + i] == 0) id_aux = i;//se va buscando huecos vacios
-				else i = WidthN;//hasta toparse con otra ficha, entonces paramos la b˙squeda
+				else i = WidthN;//hasta toparse con otra ficha, entonces paramos la b√∫squeda
 			}
 
-			//Intercambiamos las fichas, aunque no se haya encontrado ning˙n hueco
+			//Intercambiamos las fichas, aunque no se haya encontrado ning√∫n hueco
 			m[id_fil*WidthN + id_col] = m[id_fil*WidthN + id_aux];
 			m[id_fil*WidthN + id_aux] = ficha;
 		}
 
-		//	Si no hay ning˙n movimiento de ficha en el hilo, ser· false
-		//	de haberlo, ser· true
+		//	Si no hay ning√∫n movimiento de ficha en el hilo, ser√° false
+		//	de haberlo, ser√° true
 		b[id_fil*WidthN + id_col] = id_col != id_aux;
 	}
 
-	//	El resultado de m deber· ser la matriz con las fichas que se pudieran mover a la derecha, movidas,
+	//	El resultado de m deber√° ser la matriz con las fichas que se pudieran mover a la derecha, movidas,
 	//	Y el de b todos los elementos a false, excepto los coincidentes con las fichas que se han podido mover
 }
 
@@ -174,24 +188,27 @@ __global__ void exMovDch(int *m, bool *b, int WidthM, int WidthN) {
 //	Cada hilo busca una pareja para su elemento correspondiente, y si es viable, realiza la suma
 //	-	Cada hilo recorre la matriz hacia la izquierda buscando fichas como la suya viables para la suma
 //	-	para ello, cuenta cuantas coincidencias hay, si el numero es congruente con 0 mod 2,
-//	-	no se realizar· ninguna acciÛn por parte del hilo, si es congruente con 1 mod 2,
+//	-	no se realizar√° ninguna acci√≥n por parte del hilo, si es congruente con 1 mod 2,
 //	-	se multiplica por 2 el primer coincidente y se borra la ficha del hilo.
 //	-	Las coincidencias deben de ser inmediatas, solo permitiendose el 0 entre las fichas (0 == vacio)
-//	-	-	La puntuaciÛn se recoge en la matriz p
+//	-	-	La puntuaci√≥n se recoge en la matriz p
 __global__ void SumaIzq(int *m, int *p, int WidthM, int WidthN) {
-	//obtenciÛn id del hilo
-	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	//obtenci√≥n id del hilo
+	/*int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
 	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
 	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+	*/
+
+	int id_fil = threadIdx.y, id_col = threadIdx.x;
 
 	int ficha, c = 0, aux, i;
 
 	//filtro de hilos
 	if (id_fil < WidthM && id_col < WidthN) {
 		ficha = m[id_fil*WidthN + id_col];
-		//si la ficha est· vacia, el hilo no buscar·
+		//si la ficha est√° vacia, el hilo no buscar√°
 		if (ficha != 0) {
 			//Se realiza la busqueda hacia la izq
 			for (i = id_col - 1; i >= 0; i--) {
@@ -210,31 +227,34 @@ __global__ void SumaIzq(int *m, int *p, int WidthM, int WidthN) {
 				if (aux == ficha) {
 					m[id_fil*WidthN + i] = ficha * 2;
 					m[id_fil*WidthN + id_col] = 0;
-					p[id_fil*WidthN + id_col] = ficha * 2;//	Grabamos la puntuaciÛn obtenido con la suma
+					p[id_fil*WidthN + id_col] = ficha * 2;//	Grabamos la puntuaci√≥n obtenido con la suma
 					c--;//Para que el bucle for termine
 				}
 
-				//	(AclaraciÛn) Si estamos entrando en este bucle for,
+				//	(Aclaraci√≥n) Si estamos entrando en este bucle for,
 				//		significa que se ha encontrado una pareja viable anteriormente
-				//		por lo que no se filtra si se opera con una ficha no v·lida
+				//		por lo que no se filtra si se opera con una ficha no v√°lida
 			}
 		}
 		else p[id_fil*WidthN + id_col] = 0;
 	}
 }
 
-//	EjecuciÛn de Movimiento a la Izquierda de las piezas
+//	Ejecuci√≥n de Movimiento a la Izquierda de las piezas
 //	-	Cada hilo toma su ficha (si es distinta de 0) y busca espacios en blanco a su izquierda
-//	-	Cuando no encuentra m·s huecos en la matriz, intercambia su ficha con la del ˙ltimo hueco hallado
-//	-	al ser 0, intercambia con una vacÌa, si no hubiese huecos a su izquierda, la intercambia consigo mismo
-//	-	-	Esta funciÛn debe ser llamada hasta que no devuelva ning˙n cambio en la Matriz de Juego
+//	-	Cuando no encuentra m√°s huecos en la matriz, intercambia su ficha con la del √∫ltimo hueco hallado
+//	-	al ser 0, intercambia con una vac√≠a, si no hubiese huecos a su izquierda, la intercambia consigo mismo
+//	-	-	Esta funci√≥n debe ser llamada hasta que no devuelva ning√∫n cambio en la Matriz de Juego
 __global__ void exMovIzq(int *m, bool *b, int WidthM, int WidthN) {
-	//obtenciÛn id del hilo
-	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	//obtenci√≥n id del hilo
+	/*int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
 	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
 	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+	*/
+
+	int id_fil = threadIdx.y, id_col = threadIdx.x;
 
 	int ficha, id_aux = id_col;
 
@@ -242,24 +262,24 @@ __global__ void exMovIzq(int *m, bool *b, int WidthM, int WidthN) {
 	if (id_fil < WidthM && id_col < WidthN) {
 		ficha = m[id_fil*WidthN + id_col];
 
-		if (ficha != 0) {//si es 0, no hay que hacer ning˙n movimiento
+		if (ficha != 0) {//si es 0, no hay que hacer ning√∫n movimiento
 			for (int i = id_col - 1; i >= 0; i--) {
 				if (m[id_fil*WidthN + i] == 0) id_aux = i;//se va buscando huecos vacios
-				else i = -1;//hasta toparse con otra ficha, entonces paramos la b˙squeda
+				else i = -1;//hasta toparse con otra ficha, entonces paramos la b√∫squeda
 			}
 
-			//Intercambiamos las fichas, aunque no se haya encontrado ning˙n hueco
+			//Intercambiamos las fichas, aunque no se haya encontrado ning√∫n hueco
 			m[id_fil*WidthN + id_col] = m[id_fil*WidthN + id_aux];
 			m[id_fil*WidthN + id_aux] = ficha;
 		}
 		
 
-		//	Si no hay ning˙n movimiento de ficha en el hilo, ser· false
-		//	de haberlo, ser· true
+		//	Si no hay ning√∫n movimiento de ficha en el hilo, ser√° false
+		//	de haberlo, ser√° true
 		b[id_fil*WidthN + id_col] = id_col != id_aux;
 	}
 
-	//	El resultado de m deber· ser la matriz con las fichas que se pudieran mover a la izquierda, movidas,
+	//	El resultado de m deber√° ser la matriz con las fichas que se pudieran mover a la izquierda, movidas,
 	//	Y el de b todos los elementos a false, excepto los coincidentes con las fichas que se han podido mover
 }
 
@@ -268,17 +288,20 @@ __global__ void exMovIzq(int *m, bool *b, int WidthM, int WidthN) {
 //	Cada hilo busca una pareja para su elemento correspondiente, y si es viable, realiza la suma
 //	-	Cada hilo recorre la matriz hacia arriba buscando fichas como la suya viables para la suma
 //	-	para ello, cuenta cuantas coincidencias hay, si el numero es congruente con 0 mod 2,
-//	-	no se realizar· ninguna acciÛn por parte del hilo, si es congruente con 1 mod 2,
+//	-	no se realizar√° ninguna acci√≥n por parte del hilo, si es congruente con 1 mod 2,
 //	-	se multiplica por 2 el primer coincidente y se borra la ficha del hilo.
 //	-	Las coincidencias deben de ser inmediatas, solo permitiendose el 0 entre las fichas (0 == vacio)
-//	-	-	La puntuaciÛn se recoge en la matriz p
+//	-	-	La puntuaci√≥n se recoge en la matriz p
 __global__ void SumaArb(int *m, int *p, int WidthM, int WidthN) {
-	//obtenciÛn id del hilo
-	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	//obtenci√≥n id del hilo
+	/*int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
 	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
 	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+	*/
+
+	int id_fil = threadIdx.y, id_col = threadIdx.x;
 
 	int ficha, c = 0, aux, i;
 
@@ -286,7 +309,7 @@ __global__ void SumaArb(int *m, int *p, int WidthM, int WidthN) {
 	if (id_fil < WidthM && id_col < WidthN) {
 		ficha = m[id_fil*WidthN + id_col];
 
-		//si la ficha est· vacia, el hilo no buscar·
+		//si la ficha est√° vacia, el hilo no buscar√°
 		if (ficha != 0) {
 			//Se realiza la busqueda hacia arriba
 			for (i = id_fil - 1; i >= 0; i--) {
@@ -305,31 +328,34 @@ __global__ void SumaArb(int *m, int *p, int WidthM, int WidthN) {
 				if (aux == ficha) {
 					m[i*WidthN + id_col] = ficha * 2;
 					m[id_fil*WidthN + id_col] = 0;
-					p[id_fil*WidthN + id_col] = ficha * 2;//	Grabamos la puntuaciÛn obtenido con la suma
+					p[id_fil*WidthN + id_col] = ficha * 2;//	Grabamos la puntuaci√≥n obtenido con la suma
 					c--;//Para que el bucle for termine
 				}
 
-				//	(AclaraciÛn) Si estamos entrando en este bucle for,
+				//	(Aclaraci√≥n) Si estamos entrando en este bucle for,
 				//		significa que se ha encontrado una pareja viable anteriormente
-				//		por lo que no se filtra si se opera con una ficha no v·lida
+				//		por lo que no se filtra si se opera con una ficha no v√°lida
 			}
 		}
 		else p[id_fil*WidthN + id_col] = 0;
 	}
 }
 
-//	EjecuciÛn de Movimiento hacia Arriba de las piezas
+//	Ejecuci√≥n de Movimiento hacia Arriba de las piezas
 //	-	Cada hilo toma su ficha (si es distinta de 0) y busca espacios en blanco por encima
-//	-	Cuando no encuentra m·s huecos en la matriz, intercambia su ficha con la del ˙ltimo hueco hallado
-//	-	al ser 0, intercambia con una vacÌa, si no hubiese huecos por encima, la intercambia consigo mismo
-//	-	-	Esta funciÛn debe ser llamada hasta que no devuelva ning˙n cambio en la Matriz de Juego
+//	-	Cuando no encuentra m√°s huecos en la matriz, intercambia su ficha con la del √∫ltimo hueco hallado
+//	-	al ser 0, intercambia con una vac√≠a, si no hubiese huecos por encima, la intercambia consigo mismo
+//	-	-	Esta funci√≥n debe ser llamada hasta que no devuelva ning√∫n cambio en la Matriz de Juego
 __global__ void exMovArb(int *m, bool *b, int WidthM, int WidthN) {
-	//obtenciÛn id del hilo
-	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	//obtenci√≥n id del hilo
+	/*int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
 	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
 	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+	*/
+
+	int id_fil = threadIdx.y, id_col = threadIdx.x;
 
 	int ficha, id_aux = id_fil;
 
@@ -337,23 +363,23 @@ __global__ void exMovArb(int *m, bool *b, int WidthM, int WidthN) {
 	if (id_fil < WidthM && id_col < WidthN) {
 		ficha = m[id_fil*WidthN + id_col];
 
-		if (ficha != 0) {//si es 0, no hay que hacer ning˙n movimiento
+		if (ficha != 0) {//si es 0, no hay que hacer ning√∫n movimiento
 			for (int i = id_fil - 1; i >= 0; i--) {
 				if (m[i*WidthN + id_col] == 0) id_aux = i;//se va buscando huecos vacios
-				else i = -1;//hasta toparse con otra ficha, entonces paramos la b˙squeda
+				else i = -1;//hasta toparse con otra ficha, entonces paramos la b√∫squeda
 			}
 
-			//Intercambiamos las fichas, aunque no se haya encontrado ning˙n hueco
+			//Intercambiamos las fichas, aunque no se haya encontrado ning√∫n hueco
 			m[id_fil*WidthN + id_col] = m[id_aux*WidthN + id_col];
 			m[id_aux*WidthN + id_col] = ficha;
 		}
 
-		//	Si no hay ning˙n movimiento de ficha en el hilo, ser· false
-		//	de haberlo, ser· true
+		//	Si no hay ning√∫n movimiento de ficha en el hilo, ser√° false
+		//	de haberlo, ser√° true
 		b[id_fil*WidthN + id_col] = id_fil != id_aux;
 	}
 
-	//	El resultado de m deber· ser la matriz con las fichas que se pudieran mover hacia arriba, movidas,
+	//	El resultado de m deber√° ser la matriz con las fichas que se pudieran mover hacia arriba, movidas,
 	//	Y el de b todos los elementos a false, excepto los coincidentes con las fichas que se han podido mover
 }
 
@@ -362,17 +388,20 @@ __global__ void exMovArb(int *m, bool *b, int WidthM, int WidthN) {
 //	Cada hilo busca una pareja para su elemento correspondiente, y si es viable, realiza la suma
 //	-	Cada hilo recorre la matriz hacia abajo buscando fichas como la suya viables para la suma
 //	-	para ello, cuenta cuantas coincidencias hay, si el numero es congruente con 0 mod 2,
-//	-	no se realizar· ninguna acciÛn por parte del hilo, si es congruente con 1 mod 2,
+//	-	no se realizar√° ninguna acci√≥n por parte del hilo, si es congruente con 1 mod 2,
 //	-	se multiplica por 2 el primer coincidente y se borra la ficha del hilo.
 //	-	Las coincidencias deben de ser inmediatas, solo permitiendose el 0 entre las fichas (0 == vacio)
-//	-	-	La puntuaciÛn se recoge en la matriz p
+//	-	-	La puntuaci√≥n se recoge en la matriz p
 __global__ void SumaAbj(int *m, int *p, int WidthM, int WidthN) {
-	//obtenciÛn id del hilo
-	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	//obtenci√≥n id del hilo
+	/*int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
 	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
 	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+	*/
+
+	int id_fil = threadIdx.y, id_col = threadIdx.x;
 
 	int ficha, c = 0, aux, i;
 
@@ -380,7 +409,7 @@ __global__ void SumaAbj(int *m, int *p, int WidthM, int WidthN) {
 	if (id_fil < WidthM && id_col < WidthN) {
 		ficha = m[id_fil*WidthN + id_col];
 
-		//si la ficha est· vacia, el hilo no buscar·
+		//si la ficha est√° vacia, el hilo no buscar√°
 		if (ficha != 0) {
 			//Se realiza la busqueda hacia abj
 			for (i = id_fil + 1; i < WidthM; i++) {
@@ -399,31 +428,34 @@ __global__ void SumaAbj(int *m, int *p, int WidthM, int WidthN) {
 				if (aux == ficha) {
 					m[i*WidthN + id_col] = ficha * 2;
 					m[id_fil*WidthN + id_col] = 0;
-					p[id_fil*WidthN + id_col] = ficha * 2;//	Grabamos la puntuaciÛn obtenido con la suma
+					p[id_fil*WidthN + id_col] = ficha * 2;//	Grabamos la puntuaci√≥n obtenido con la suma
 					c--;//Para que el bucle for termine
 				}
 
-				//	(AclaraciÛn) Si estamos entrando en este bucle for,
+				//	(Aclaraci√≥n) Si estamos entrando en este bucle for,
 				//		significa que se ha encontrado una pareja viable anteriormente
-				//		por lo que no se filtra si se opera con una ficha no v·lida
+				//		por lo que no se filtra si se opera con una ficha no v√°lida
 			}
 		}
 		else p[id_fil*WidthN + id_col] = 0;
 	}
 }
 
-//	EjecuciÛn de Movimiento hacia Abajo de las piezas
+//	Ejecuci√≥n de Movimiento hacia Abajo de las piezas
 //	-	Cada hilo toma su ficha (si es distinta de 0) y busca espacios en blanco por debajo de ella
-//	-	Cuando no encuentra m·s huecos en la matriz, intercambia su ficha con la del ˙ltimo hueco hallado
-//	-	al ser 0, intercambia con una vacÌa, si no hubiese huecos por debajo, la intercambia consigo mismo
-//	-	-	Esta funciÛn debe ser llamada hasta que no devuelva ning˙n cambio en la Matriz de Juego
+//	-	Cuando no encuentra m√°s huecos en la matriz, intercambia su ficha con la del √∫ltimo hueco hallado
+//	-	al ser 0, intercambia con una vac√≠a, si no hubiese huecos por debajo, la intercambia consigo mismo
+//	-	-	Esta funci√≥n debe ser llamada hasta que no devuelva ning√∫n cambio en la Matriz de Juego
 __global__ void exMovAbj(int *m, bool *b, int WidthM, int WidthN) {
-	//obtenciÛn id del hilo
-	int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	//obtenci√≥n id del hilo
+	/*int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
 	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
 	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
+	*/
+
+	int id_fil = threadIdx.y, id_col = threadIdx.x;
 
 	int ficha, id_aux = id_fil;
 
@@ -431,23 +463,23 @@ __global__ void exMovAbj(int *m, bool *b, int WidthM, int WidthN) {
 	if (id_fil < WidthM && id_col < WidthN) {
 		ficha = m[id_fil*WidthN + id_col];
 
-		if (ficha != 0) {//si es 0, no hay que hacer ning˙n movimiento
+		if (ficha != 0) {//si es 0, no hay que hacer ning√∫n movimiento
 			for (int i = id_fil + 1; i < WidthM; i++) {
 				if (m[i*WidthN + id_col] == 0) id_aux = i;//se va buscando huecos vacios
-				else i = WidthM;//hasta toparse con otra ficha, entonces paramos la b˙squeda
+				else i = WidthM;//hasta toparse con otra ficha, entonces paramos la b√∫squeda
 			}
 
-			//Intercambiamos las fichas, aunque no se haya encontrado ning˙n hueco
+			//Intercambiamos las fichas, aunque no se haya encontrado ning√∫n hueco
 			m[id_fil*WidthN + id_col] = m[id_aux*WidthN + id_col];
 			m[id_aux*WidthN + id_col] = ficha;
 		}
 
-		//	Si no hay ning˙n movimiento de ficha en el hilo, ser· false
-		//	de haberlo, ser· true
+		//	Si no hay ning√∫n movimiento de ficha en el hilo, ser√° false
+		//	de haberlo, ser√° true
 		b[id_fil*WidthN + id_col] = id_fil != id_aux;
 	}
 
-	//	El resultado de m deber· ser la matriz con las fichas que se pudieran mover hacia abajo, movidas,
+	//	El resultado de m deber√° ser la matriz con las fichas que se pudieran mover hacia abajo, movidas,
 	//	Y el de b todos los elementos a false, excepto los coincidentes con las fichas que se han podido mover
 }
 
@@ -478,7 +510,7 @@ enum Colores {	//Colores para el fondo y la fuente de la consola
 void Color(int fondo, int fuente) {
 
 	HANDLE Consola = GetStdHandle(STD_OUTPUT_HANDLE);
-	//C·lculo para convertir los colores al valor necesario
+	//C√°lculo para convertir los colores al valor necesario
 	int color_nuevo = fuente + (fondo * 16);
 	//Aplicamos el color a la consola
 	SetConsoleTextAttribute(Consola, color_nuevo);
@@ -486,7 +518,7 @@ void Color(int fondo, int fuente) {
 }
 
 //	Inicializador de la matriz de juego
-//	-	*m Matriz en forma vectorial con la que se trabaja, WidthM y WidthN su tamaÒo de columna y fila
+//	-	*m Matriz en forma vectorial con la que se trabaja, WidthM y WidthN su tama√±o de columna y fila
 //	-	x e y, las coordenadas del elemento que se introducira con el valor indicado
 bool IntroCasilla(int *m, int WidthN, int x, int y, int valor) {
 	bool out = m[y*WidthN + x] == 0;
@@ -496,12 +528,11 @@ bool IntroCasilla(int *m, int WidthN, int x, int y, int valor) {
 	return out;
 }
 
-
 void obtenerCaracteristicas(int n_columnas, int n_filas) {
 	cudaDeviceProp prop;
 	cudaGetDeviceProperties(&prop, 0);
 
-	printf("CaracterÌsticas de la tarjeta: \n");
+	printf("Caracter√≠sticas de la tarjeta: \n");
 	printf("Nombre: %s \n", prop.name);
 	printf("Capabilities: %d.%d \n", prop.major, prop.minor);
 	printf("Maximo de hilos por bloque: %d \n", prop.maxThreadsPerBlock);
@@ -511,7 +542,7 @@ void obtenerCaracteristicas(int n_columnas, int n_filas) {
 	printf("Maximo de registros: %d \n", prop.regsPerBlock);
 	printf("Numero de multiprocesadores: %d \n", prop.multiProcessorCount);
 
-	//Tamanio de la matriz en hilos y memoria
+	//Tama√±o de la matriz en hilos y memoria
 	printf("Numero de hilos de la matriz: %d \n", n_columnas*n_filas);
 	printf("Cantidad de memoria utilizada por la matriz: %zd \n", n_columnas*n_filas * sizeof(int));
 
@@ -520,17 +551,17 @@ void obtenerCaracteristicas(int n_columnas, int n_filas) {
 		exit(-1);
 	}
 	if (prop.totalGlobalMem < (n_columnas*n_filas * sizeof(int))) {
-		printf("El tamaÒo de memoria global es insuficiente para calcular la matriz \n");
+		printf("El tama√±o de memoria global es insuficiente para calcular la matriz \n");
 		exit(-1);
 	}
 }
 
 //	Carga los datos del Juego Guardados anteriormente
-//	-	v Matriz de Juego, WidthM y WidthN el tamaÛ de la matriz de juego,
+//	-	v Matriz de Juego, WidthM y WidthN el tama√≥ de la matriz de juego,
 //	-	puntuacion de juego acumulada y s el nombre del archivo de guardado
 bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, char *s) {
 	string linea; //buffer de entrada
-	char *c; //cadena de char para transformaciÛn
+	char *c; //cadena de char para transformaci√≥n
 	char *token; //tokens de la matriz
 	int k; //contador de acceso a la matriz
 	ifstream entrada(s); //Fichero de entrada
@@ -566,7 +597,7 @@ bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, char *s) {
 			*WidthN = atoi(c);
 			free(c);
 		}
-		//	Carga de la puntuaciÛn
+		//	Carga de la puntuaci√≥n
 		if (getline(entrada, linea, ';')) {
 			c = (char*)malloc(linea.size() * sizeof(char));
 			strcpy(c, linea.c_str());
@@ -583,7 +614,7 @@ bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, char *s) {
 
 //	Guarda los datos de juego en el archivo de guardado indicado
 //	-	v matriz de juego, WidthM y WidthN dimensiones de la matriz de juego,
-//	-	puntuaciÛn de la partida y nombre del archivo destino
+//	-	puntuaci√≥n de la partida y nombre del archivo destino
 void guardaDatos(int *v, int WidthM, int WidthN, int puntuacion, char *s) {
 	ofstream salida;//	Fichero de salida
 	int Width = WidthM * WidthN;//	Numero de elementos de la matriz de juego
@@ -605,25 +636,28 @@ void guardaDatos(int *v, int WidthM, int WidthN, int puntuacion, char *s) {
 int reconocerTeclado() {
 	char tecla;
 	int salida;
+	bool flag = true;
 
-	tecla = getch();
-
-	if (tecla == 'p' || tecla == 'P') salida = 0;
-	if (tecla == 'w' || tecla == 'W') salida = 1;
-	if (tecla == 'a' || tecla == 'A') salida = 2;
-	if (tecla == 'd' || tecla == 'D') salida = 3;
-	if (tecla == 's' || tecla == 'S') salida = 4;
-
-	if (tecla == 'r' || tecla == 'R') salida = 5;
-	if (tecla == 'g' || tecla == 'G') salida = 6;
-
-	if (tecla == -32) {
+	do {
 		tecla = getch();
-		if (tecla == 72) salida = 1;
-		if (tecla == 75) salida = 2;
-		if (tecla == 77) salida = 3;
-		if (tecla == 80) salida = 4;
-	}
+
+		if (tecla == 'p' || tecla == 'P') { salida = 0; flag = false;}
+		if (tecla == 'w' || tecla == 'W') { salida = 1; flag = false;}
+		if (tecla == 'a' || tecla == 'A') { salida = 2; flag = false;}
+		if (tecla == 'd' || tecla == 'D') {salida = 3; flag = false;}
+		if (tecla == 's' || tecla == 'S') {salida = 4; flag = false;}
+
+		if (tecla == 'r' || tecla == 'R') {salida = 5; flag = false;}
+		if (tecla == 'g' || tecla == 'G') {salida = 6; flag = false;}
+
+		if (tecla == -32) {
+			tecla = getch();
+			if (tecla == 72) {salida = 1; flag = false;}
+			if (tecla == 75) {salida = 2; flag = false;}
+			if (tecla == 77) {salida = 3; flag = false;}
+			if (tecla == 80) {salida = 4; flag = false;}
+		}
+	} while (flag);
 
 	return salida;
 }
@@ -649,7 +683,11 @@ void mostrarMenuInicial() {
 
 //	Mostramos las opciones de pausa
 void mostrarMenuPausa() {
-	printf("                        PAUSA             \n\n");
+	system("cls");
+	Color(WHITE, BLACK);
+	printf("                        PAUSA             ");
+	Color(BLACK, WHITE);
+	printf("\n\n");
 	printf("Selecciona una opcion:\n");
 	printf("\t R - Reanudar \n");
 	printf("\t G - Guardar progreso y salir \n");
@@ -663,21 +701,23 @@ void imprimeMatriz(int *p, int *v, int m, int n) {//( m * n )
 	int ws;//numero de espacios de caracteres por casilla
 	printf("\n");
 	system("cls");
-
-	printf("Puntuacion: %d \n", p[0]);
+	Color(WHITE, BLACK);
+	printf("\t-WASD y Flechas del Teclado para mover las fichas\n\t\-P para Pausa");
+	Color(BLACK, WHITE);
+	printf("\nPuntuacion: %d \n", *p);
 	for (i = 0; i < m; i++) {//recorremos eje m
 		for (j = 0; j < n; j++) {//recorremos eje n
 			ws = WS;
 			x = v[i*n + j];
 
-			//No se consideran numeros negativos, y el lÌmite son 6 dÌgitos (que no se alcanzan)
+			//No se consideran numeros negativos, y el l√≠mite son 6 d√≠gitos (que no se alcanzan)
 
 			do {//Se ocupa un hueco por digito del numero
 				ws--;
 				x = x / 10;
 			} while (x > 0);
 
-			switch (v[i*n + j]) {//	Modifica el color en el que se mostrar·n los elementos
+			switch (v[i*n + j]) {//	Modifica el color en el que se mostrar√°n los elementos
 			case 0:
 				Color(BLACK, RED);
 				break;
@@ -740,11 +780,16 @@ void imprimeMatriz(int *p, int *v, int m, int n) {//( m * n )
 		printf("\n");
 		
 	}
-	Color(BLACK, RED);
-	printf("VIDAS: ");
+	printf("\n");
+	Color(WHITE, BLACK);
+	printf("VIDAS:              ");
+	Color(BLACK, WHITE);
+	printf("\n");
+	Color(WHITE, RED);
 	for (int i = 0; i < VIDAS; i++) {
 		printf(" <3 ");
 	}
+	Color(WHITE, BLACK);
 	printf("\n");
 
 	Color(BLACK, WHITE);
@@ -776,14 +821,12 @@ printf("\n");
 //	-	*m matriz de Juego, WidthM y WidthN dimensiones de columna y fila
 //	-	x e y, coordenadas donde se intenta introducir el elemento "set", si ya hay un elemento (!= 0), no se introduce y devuelve false
 bool introNum(int *m, int WidthM, int WidthN, int x, int y, int set) {
-	//comprobaciÛn de que estÈ dentro
+	//comprobaci√≥n de que est√© dentro
 	if (x < WidthN && y < WidthM) {
-
 		if (m[y*WidthN + x] == 0) {
 			m[y*WidthN + x] = set;
 			return true;
 		}
-
 	}
 
 	return false;
@@ -817,8 +860,8 @@ bool checkLleno(int *v, int m, int n) {
 	return out;
 }
 
-//	Suma la puntuaciÛn total de la matriz
-//	-	Recorremos toda la matriz buscando la puntuaciÛn total que guarda
+//	Suma la puntuaci√≥n total de la matriz
+//	-	Recorremos toda la matriz buscando la puntuaci√≥n total que guarda
 int sumaPuntuacion(int *p, int m, int n) {
 	int out = 0;
 	int i, j;
@@ -832,20 +875,43 @@ int sumaPuntuacion(int *p, int m, int n) {
 	return out;
 }
 
+void introSemilla(int *v, int WidthM, int WidthN, int dificultad) {
+	int x, y, valor;
+
+	//Metemos nuevas semillas despues de realizar cada movimiento
+	if (dificultad == 1) {
+		for (int i = 0; i < 15; i++) {
+			do {
+				x = rand() % WidthN;
+				y = rand() % WidthM;
+				valor = BAJO[rand() % 3];
+			} while (!IntroCasilla(v, WidthN, x, y, valor) && checkLleno(v, WidthM, WidthN));
+		}
+	}
+	else if (dificultad == 2) {
+		for (int i = 0; i < 8; i++) {
+			do {
+				x = rand() % WidthN;
+				y = rand() % WidthM;
+				valor = BAJO[rand() % 2];
+			} while (!IntroCasilla(v, WidthN, x, y, valor) && checkLleno(v, WidthM, WidthN));
+		}
+	}
+}
 
 //	Realizamos las sumas y los movimientos hacia arriba
-//	-	v Matriz de juego, p UN SOLO ENTERO CON LA PUNTUACI”N,
-//	-	la propia funciÛn se encargar· de obtenerlo
+//	-	v Matriz de juego, p UN SOLO ENTERO CON LA PUNTUACI√ìN,
+//	-	la propia funci√≥n se encargar√° de obtenerlo
 cudaError_t accionArriba(int *v, int *p, int WidthM, int WidthN) {
-
+	//printf("accion arriba");
 	cudaError_t cudaStatus;
 	int *dev_v = 0, *dev_p = 0;
 	bool *dev_b = 0;
 	dim3 dimGrid(1, 1);
 	dim3 dimBlock(WidthM, WidthN);
 
-	int *h_p = (int*)malloc(WidthM * WidthN * sizeof(int));
-	bool *b = (bool*)malloc(WidthM * WidthN * sizeof(bool));
+	int *h_p = (int*) malloc(WidthM * WidthN * sizeof(int));
+	bool *b = (bool*) malloc(WidthM * WidthN * sizeof(bool));
 
 	// Choose which GPU to run on, change this on a multi-GPU system.
 	cudaStatus = cudaSetDevice(0);
@@ -875,12 +941,13 @@ cudaError_t accionArriba(int *v, int *p, int WidthM, int WidthN) {
 
 	//	Sumamos las fichas que se puedan juntar
 
-	SumaArb <<<dimGrid, dimBlock >>>(dev_v, dev_p, WidthM, WidthN);
+	//printf("Sumamos");
+	SumaArb << <dimGrid, dimBlock >> >(dev_v, dev_p, WidthM, WidthN);
 
 	// Check for any errors launching the kernel
 	cudaStatus = cudaGetLastError();
 	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+		fprintf(stderr, "SumaArb launch failed: %s\n", cudaGetErrorString(cudaStatus));
 		goto FreeArb;
 	}
 
@@ -888,7 +955,7 @@ cudaError_t accionArriba(int *v, int *p, int WidthM, int WidthN) {
 	// any errors encountered during the launch.
 	cudaStatus = cudaDeviceSynchronize();
 	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching SumaArb!\n", cudaStatus);
 		goto FreeArb;
 	}
 
@@ -905,7 +972,8 @@ cudaError_t accionArriba(int *v, int *p, int WidthM, int WidthN) {
 		goto FreeArb;
 	}
 
-	*p = sumaPuntuacion(h_p, WidthM, WidthN);
+	//printf(" sumando puntuacion ");
+	*p = *p + sumaPuntuacion(h_p, WidthM, WidthN);
 
 	cudaStatus = cudaMalloc((void**)&dev_b, WidthM * WidthN * sizeof(bool));
 	if (cudaStatus != cudaSuccess) {
@@ -914,20 +982,22 @@ cudaError_t accionArriba(int *v, int *p, int WidthM, int WidthN) {
 	}
 
 	do {
+		//printf("\nMovemos casillas ");
 		//	Inicializamos la matriz de bool
 
 		//	Rellena de False la matriz de booleanos
+		//printf("bools");
 		iniBool << <dimGrid, dimBlock >> > (dev_b, WidthM, WidthN, false);
 
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "2_addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			fprintf(stderr, "iniBool launch failed: %s\n", cudaGetErrorString(cudaStatus));
 			goto FreeArb;
 		}
 
 		cudaStatus = cudaDeviceSynchronize();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching iniBool!\n", cudaStatus);
 			goto FreeArb;
 		}
 
@@ -937,13 +1007,13 @@ cudaError_t accionArriba(int *v, int *p, int WidthM, int WidthN) {
 
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "3_addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			fprintf(stderr, "exMovArb launch failed: %s\n", cudaGetErrorString(cudaStatus));
 			goto FreeArb;
 		}
 
 		cudaStatus = cudaDeviceSynchronize();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching esMovArb!\n", cudaStatus);
 			goto FreeArb;
 		}
 
@@ -962,7 +1032,7 @@ cudaError_t accionArriba(int *v, int *p, int WidthM, int WidthN) {
 		//Mientras se haya movido una ficha se vuelve a ejecutar el movimiento
 	} while (checkMatrizBool(b, WidthM, WidthN));
 
-
+	//printf("\nTodo Movido");
 
 FreeArb:
 	cudaFree(dev_v);
@@ -976,7 +1046,7 @@ FreeArb:
 
 //Realizamos las sumas y los movimientos hacia la izquierda
 cudaError_t accionIzquierda(int *v, int *p, int WidthM, int WidthN) {
-
+	//printf("accion izquierda");
 	cudaError_t cudaStatus;
 	int *dev_v = 0, *dev_p = 0;
 	bool *dev_b = 0;
@@ -1014,12 +1084,13 @@ cudaError_t accionIzquierda(int *v, int *p, int WidthM, int WidthN) {
 
 	//	Sumamos las fichas que se puedan juntar
 
+	//printf("Sumamos");
 	SumaIzq << <dimGrid, dimBlock >> > (dev_v, dev_p, WidthM, WidthN);
 
 	// Check for any errors launching the kernel
 	cudaStatus = cudaGetLastError();
 	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "1_addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+		fprintf(stderr, "SumaIzq launch failed: %s\n", cudaGetErrorString(cudaStatus));
 		goto FreeIzq;
 	}
 
@@ -1027,7 +1098,7 @@ cudaError_t accionIzquierda(int *v, int *p, int WidthM, int WidthN) {
 	// any errors encountered during the launch.
 	cudaStatus = cudaDeviceSynchronize();
 	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching SumaIzq!\n", cudaStatus);
 		goto FreeIzq;
 	}
 
@@ -1044,7 +1115,8 @@ cudaError_t accionIzquierda(int *v, int *p, int WidthM, int WidthN) {
 		goto FreeIzq;
 	}
 
-	*p = sumaPuntuacion(h_p, WidthM, WidthN);
+	//printf(" sumando puntuacion ");
+	*p = *p + sumaPuntuacion(h_p, WidthM, WidthN);
 
 	cudaStatus = cudaMalloc((void**)&dev_b, WidthM * WidthN * sizeof(bool));
 	if (cudaStatus != cudaSuccess) {
@@ -1053,20 +1125,22 @@ cudaError_t accionIzquierda(int *v, int *p, int WidthM, int WidthN) {
 	}
 
 	do {
+		//printf("\nMovemos casillas ");
 		//	Inicializamos la matriz de bool
 
 		//	Rellena de False la matriz de booleanos
+		//printf("bools");
 		iniBool << <dimGrid, dimBlock >> > (dev_b, WidthM, WidthN, false);
 
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "2_addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			fprintf(stderr, "iniBool launch failed: %s\n", cudaGetErrorString(cudaStatus));
 			goto FreeIzq;
 		}
 
 		cudaStatus = cudaDeviceSynchronize();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching iniBool!\n", cudaStatus);
 			goto FreeIzq;
 		}
 
@@ -1076,13 +1150,13 @@ cudaError_t accionIzquierda(int *v, int *p, int WidthM, int WidthN) {
 
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "3_addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			fprintf(stderr, "exMovIzq launch failed: %s\n", cudaGetErrorString(cudaStatus));
 			goto FreeIzq;
 		}
 
 		cudaStatus = cudaDeviceSynchronize();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching exMovIzq!\n", cudaStatus);
 			goto FreeIzq;
 		}
 
@@ -1101,7 +1175,7 @@ cudaError_t accionIzquierda(int *v, int *p, int WidthM, int WidthN) {
 		//Mientras se haya movido una ficha se vuelve a ejecutar el movimiento
 	} while (checkMatrizBool(b, WidthM, WidthN));
 
-
+	//printf("\nTodo Movido");
 
 FreeIzq:
 	cudaFree(dev_v);
@@ -1115,7 +1189,7 @@ FreeIzq:
 
 //Realizamos las sumas y los movimientos hacia la derecha
 cudaError_t accionDerecha(int *v, int *p, int WidthM, int WidthN) {
-
+	//printf("accion derecha");
 	cudaError_t cudaStatus;
 	int *dev_v = 0, *dev_p = 0;
 	bool *dev_b = 0;
@@ -1153,12 +1227,13 @@ cudaError_t accionDerecha(int *v, int *p, int WidthM, int WidthN) {
 
 	//	Sumamos las fichas que se puedan juntar
 
+	//printf("Sumamos");
 	SumaDch << <dimGrid, dimBlock >> > (dev_v, dev_p, WidthM, WidthN);
 
 	// Check for any errors launching the kernel
 	cudaStatus = cudaGetLastError();
 	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "1_addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+		fprintf(stderr, "SumaDch launch failed: %s\n", cudaGetErrorString(cudaStatus));
 		goto FreeDch;
 	}
 
@@ -1166,7 +1241,7 @@ cudaError_t accionDerecha(int *v, int *p, int WidthM, int WidthN) {
 	// any errors encountered during the launch.
 	cudaStatus = cudaDeviceSynchronize();
 	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching SumaDch!\n", cudaStatus);
 		goto FreeDch;
 	}
 
@@ -1183,7 +1258,8 @@ cudaError_t accionDerecha(int *v, int *p, int WidthM, int WidthN) {
 		goto FreeDch;
 	}
 
-	*p = sumaPuntuacion(h_p, WidthM, WidthN);
+	//printf(" sumando puntuacion ");
+	*p = *p + sumaPuntuacion(h_p, WidthM, WidthN);
 
 	cudaStatus = cudaMalloc((void**)&dev_b, WidthM * WidthN * sizeof(bool));
 	if (cudaStatus != cudaSuccess) {
@@ -1192,20 +1268,22 @@ cudaError_t accionDerecha(int *v, int *p, int WidthM, int WidthN) {
 	}
 
 	do {
+		//printf("\nMovemos casillas ");
 		//	Inicializamos la matriz de bool
 
 		//	Rellena de False la matriz de booleanos
+		//printf("bools");
 		iniBool << <dimGrid, dimBlock >> > (dev_b, WidthM, WidthN, false);
 
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "2_addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			fprintf(stderr, "iniBool launch failed: %s\n", cudaGetErrorString(cudaStatus));
 			goto FreeDch;
 		}
 
 		cudaStatus = cudaDeviceSynchronize();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching iniBool!\n", cudaStatus);
 			goto FreeDch;
 		}
 
@@ -1215,13 +1293,13 @@ cudaError_t accionDerecha(int *v, int *p, int WidthM, int WidthN) {
 
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "3_addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			fprintf(stderr, "exMovDch launch failed: %s\n", cudaGetErrorString(cudaStatus));
 			goto FreeDch;
 		}
 
 		cudaStatus = cudaDeviceSynchronize();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching exMovDch!\n", cudaStatus);
 			goto FreeDch;
 		}
 
@@ -1240,7 +1318,7 @@ cudaError_t accionDerecha(int *v, int *p, int WidthM, int WidthN) {
 		//Mientras se haya movido una ficha se vuelve a ejecutar el movimiento
 	} while (checkMatrizBool(b, WidthM, WidthN));
 
-
+	//printf("\nTodo Movido");
 
 FreeDch:
 	cudaFree(dev_v);
@@ -1254,15 +1332,15 @@ FreeDch:
 
 //Realizamos las sumas y los movimientos hacia abajo
 cudaError_t accionAbajo(int *v, int *p, int WidthM, int WidthN) {
-
+	//printf("accion abajo");
 	cudaError_t cudaStatus;
 	int *dev_v = 0, *dev_p = 0;
 	bool *dev_b = 0;
 	dim3 dimGrid(1, 1);
 	dim3 dimBlock(WidthM, WidthN);
 
-	int *h_p = (int*)malloc(WidthM * WidthN * sizeof(int));
-	bool *b = (bool*)malloc(WidthM * WidthN * sizeof(bool));
+	int *h_p = (int*) malloc(WidthM * WidthN * sizeof(int));
+	bool *b = (bool*) malloc(WidthM * WidthN * sizeof(bool));
 
 	// Choose which GPU to run on, change this on a multi-GPU system.
 	cudaStatus = cudaSetDevice(0);
@@ -1291,13 +1369,13 @@ cudaError_t accionAbajo(int *v, int *p, int WidthM, int WidthN) {
 	}
 
 	//	Sumamos las fichas que se puedan juntar
-
+	//printf("Sumamos");
 	SumaAbj << <dimGrid, dimBlock >> > (dev_v, dev_p, WidthM, WidthN);
 
 	// Check for any errors launching the kernel
 	cudaStatus = cudaGetLastError();
 	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+		fprintf(stderr, "SumaAbj launch failed: %s\n", cudaGetErrorString(cudaStatus));
 		goto FreeAbj;
 	}
 
@@ -1305,7 +1383,7 @@ cudaError_t accionAbajo(int *v, int *p, int WidthM, int WidthN) {
 	// any errors encountered during the launch.
 	cudaStatus = cudaDeviceSynchronize();
 	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching SumaAbj!\n", cudaStatus);
 		goto FreeAbj;
 	}
 
@@ -1322,7 +1400,8 @@ cudaError_t accionAbajo(int *v, int *p, int WidthM, int WidthN) {
 		goto FreeAbj;
 	}
 
-	*p = sumaPuntuacion(h_p, WidthM, WidthN);
+	//printf(" sumando puntuacion ");
+	*p = *p + sumaPuntuacion(h_p, WidthM, WidthN);
 
 	cudaStatus = cudaMalloc((void**)&dev_b, WidthM * WidthN * sizeof(bool));
 	if (cudaStatus != cudaSuccess) {
@@ -1331,20 +1410,22 @@ cudaError_t accionAbajo(int *v, int *p, int WidthM, int WidthN) {
 	}
 
 	do {
+		//printf("\nMovemos casillas ");
 		//	Inicializamos la matriz de bool
 
 		//	Rellena de False la matriz de booleanos
+		//printf("bools");
 		iniBool << <dimGrid, dimBlock >> > (dev_b, WidthM, WidthN, false);
 
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			fprintf(stderr, "iniBool launch failed: %s\n", cudaGetErrorString(cudaStatus));
 			goto FreeAbj;
 		}
 
 		cudaStatus = cudaDeviceSynchronize();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching iniBool!\n", cudaStatus);
 			goto FreeAbj;
 		}
 
@@ -1354,13 +1435,13 @@ cudaError_t accionAbajo(int *v, int *p, int WidthM, int WidthN) {
 
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
+			fprintf(stderr, "exMovAbj launch failed: %s\n", cudaGetErrorString(cudaStatus));
 			goto FreeAbj;
 		}
 
 		cudaStatus = cudaDeviceSynchronize();
 		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+			fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching exMovAbj!\n", cudaStatus);
 			goto FreeAbj;
 		}
 
@@ -1379,7 +1460,7 @@ cudaError_t accionAbajo(int *v, int *p, int WidthM, int WidthN) {
 		//Mientras se haya movido una ficha se vuelve a ejecutar el movimiento
 	} while (checkMatrizBool(b, WidthM, WidthN));
 
-
+	//printf("\nTodo Movido");
 
 FreeAbj:
 	cudaFree(dev_v);
@@ -1411,24 +1492,27 @@ void accionGuardarSalir() {
 //	Ejecutamos una accion en funcion de la tecla pulsada
 void accionPausa() {
 	int tecla;
+	bool flag = true;
 
-	tecla = reconocerTeclado();
+	do {
+		tecla = reconocerTeclado();
 
-	switch (tecla) {
-		//Salir sin guardar
-		case 4:
-			accionSalir();
-			break;
-		//Reanudar
-		case 5:
-			accionReanudar();
-			break;
-		//Guardar y salir
-		case 6:
-			accionGuardarSalir();
-			break;
-	}
-
+		switch (tecla) {
+			//Salir sin guardar
+			case 4:
+				accionSalir();
+				break;
+			//Reanudar
+			case 5:
+				accionReanudar();
+				flag = false;
+				break;
+			//Guardar y salir
+			case 6:
+				accionGuardarSalir();
+				break;
+		}
+	} while (flag);
 }
 
 void modoAutomatico() {
@@ -1439,8 +1523,12 @@ void modoManual(int dificultad, int WidthM, int WidthN) {
 	int teclaPulsada;
 	int *v = (int*) malloc(WidthM*WidthN*sizeof(int));
 	int *dev_v = 0;
-	int *p = (int*)malloc(sizeof(int));
-	int x, y, valor;
+	int *p = (int*) malloc(sizeof(int));
+
+	*p = 0;
+
+	/*TILE_WIDTH_M = WidthM;
+	TILE_WIDTH_N = WidthN;*/
 
 	dim3 dimGrid(1, 1);
 	dim3 dimBlock(WidthM, WidthN);
@@ -1469,11 +1557,14 @@ void modoManual(int dificultad, int WidthM, int WidthN) {
 
 	Inicializador << <dimGrid, dimBlock >> > (dev_v, WidthM, WidthN);
 
-	// cudaDeviceSynchronize waits for the kernel to finish, and returns
-	// any errors encountered during the launch.
+	cudaStatus = cudaGetLastError();
+	if (cudaStatus != cudaSuccess) {
+		fprintf(stderr, "Inicializador launch failed: %s\n", cudaGetErrorString(cudaStatus));
+		goto FreeMan;
+	}
 	cudaStatus = cudaDeviceSynchronize();
 	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
+		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching Inicializador!\n", cudaStatus);
 		goto FreeMan;
 	}
 
@@ -1484,43 +1575,21 @@ void modoManual(int dificultad, int WidthM, int WidthN) {
 		goto FreeMan;
 	}
 
-	imprimeMatriz(p,v, WidthM, WidthN);
+	//imprimeMatriz(p, v, WidthM, WidthN);
+	//printf("Matriz Generada\n");
 
-	cudaStatus = cudaGetLastError();
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-		goto FreeMan;
-	}
-	cudaStatus = cudaDeviceSynchronize();
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
-		goto FreeMan;
-	}
+	introSemilla(v, WidthM, WidthN, dificultad);
 
-	//Introducimos las semillas en funcion de la dificultad
-	if (dificultad==1) {
-		for (int i = 0; i < 15; i++) {
-			do {
-				x = rand() % WidthN;
-				y = rand() % WidthM;
-				valor = BAJO[rand() % 3];
-			} while (!IntroCasilla(v, WidthN, x, y, valor));
-		}
-	}
-	else if (dificultad==2) {
-		for (int i = 0; i < 8; i++) {
-			do {
-				x = rand() % WidthN;
-				y = rand() % WidthM;
-				valor = BAJO[rand() % 2];
-			} while (!IntroCasilla(v, WidthN, x, y, valor));
-		}
-	}
+	//imprimeMatriz(p, v, WidthM, WidthN);
+	//printf("Semilla metida\n");
 
 	do {
-		teclaPulsada = reconocerTeclado();
-		switch (teclaPulsada) {
 
+		imprimeMatriz(p, v, WidthM, WidthN);
+
+		teclaPulsada = reconocerTeclado();
+		//printf("%d", teclaPulsada);
+		switch (teclaPulsada) {
 			//Menu de Pausa
 		case 0:
 			mostrarMenuPausa();
@@ -1530,21 +1599,25 @@ void modoManual(int dificultad, int WidthM, int WidthN) {
 			//Arriba
 		case 1:
 			cudaStatus= accionArriba(v, p, WidthM, WidthN);
+			introSemilla(v, WidthM, WidthN, dificultad);
 			break;
 
 			//Izquierda
 		case 2:
 			cudaStatus = accionIzquierda(v, p, WidthM, WidthN);
+			introSemilla(v, WidthM, WidthN, dificultad);
 			break;
 
 			//Derecha
 		case 3:
 			cudaStatus = accionDerecha(v, p, WidthM, WidthN);
+			introSemilla(v, WidthM, WidthN, dificultad);
 			break;
 
 			//Abajo
 		case 4:
 			cudaStatus = accionAbajo(v, p, WidthM, WidthN);
+			introSemilla(v, WidthM, WidthN, dificultad);
 			break;
 
 			//Defecto
@@ -1552,28 +1625,12 @@ void modoManual(int dificultad, int WidthM, int WidthN) {
 			break;
 		}
 
-		//Metemos nuevas semillas despues de realizar cada movimiento
-		if (dificultad == 1) {
-			for (int i = 0; i < 15; i++) {
-				do {
-					x = rand() % WidthN;
-					y = rand() % WidthM;
-					valor = BAJO[rand() % 3];
-				} while (!IntroCasilla(v, WidthN, x, y, valor));
-			}
-		}
-		else if (dificultad == 2) {
-			for (int i = 0; i < 8; i++) {
-				do {
-					x = rand() % WidthN;
-					y = rand() % WidthM;
-					valor = BAJO[rand() % 2];
-				} while (!IntroCasilla(v, WidthN, x, y, valor));
-			}
-		}
+		//imprimeMatriz(p, v, WidthM, WidthN);
 
-		imprimeMatriz(p, v, WidthM, WidthN);
+		//printf("\n - fin loop - ");
 	} while (checkLleno(v, WidthM, WidthN));
+
+	//printf("\nMatriz llena - fin de partida");
 
 	if (!checkLleno(v, WidthM, WidthN)) {
 		VIDAS--;
@@ -1590,7 +1647,7 @@ FreeMan:
 
 int main(int argc, char** argv) {
 
-	//Mostramos el men˙ inicial y procedemos a jugar
+	//Mostramos el men√∫ inicial y procedemos a jugar
 	mostrarMenuInicial();
 
 
@@ -1612,7 +1669,7 @@ int main(int argc, char** argv) {
 
 //-------------------------------------------------------------------------------------------------
 
-//--------------------------------- InicializaciÛn Ejemplo de VS2015 --------------------------------------------
+//--------------------------------- Inicializaci√≥n Ejemplo de VS2015 --------------------------------------------
 
 /*cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
 
