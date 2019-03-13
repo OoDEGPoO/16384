@@ -44,7 +44,7 @@ __device__ int TILE_WIDTH_N = 0;
 //M es el eje Y
 //N es el eje X
 
-//------------------------------------------ Device -----------------------------------------------
+//------------------------------------------------------------------- Device ------------------------------------------------------------------------
 
 //	Inicializador de la matriz de juego
 //	-	*m Matriz en forma vectorial con la que se trabaja, WidthM y WidthN su tamaño de columna y fila
@@ -485,9 +485,9 @@ __global__ void exMovAbj(int *m, bool *b, int WidthM, int WidthN) {
 	//	Y el de b todos los elementos a false, excepto los coincidentes con las fichas que se han podido mover
 }
 
-//-------------------------------------------------------------------------------------------------
+//---------------------------------------------------------------------------------------------------------------------------------------------------
 
-//------------------------------------------- Host ------------------------------------------------
+//-------------------------------------------------------------------- Host -------------------------------------------------------------------------
 
 enum Colores {	//Colores para el fondo y la fuente de la consola
 	BLACK = 0,
@@ -533,26 +533,31 @@ bool IntroCasilla(int *m, int WidthN, int x, int y, int valor) {
 void obtenerCaracteristicas(int n_columnas, int n_filas) {
 	cudaDeviceProp prop;
 	cudaGetDeviceProperties(&prop, 0);
+	int size = n_columnas*n_filas;//Numero de elementos de los tableros de juego
+	
+	//printf("Características de la tarjeta: \n");
+	//printf("Nombre: %s \n", prop.name);
+	//printf("Capabilities: %d.%d \n", prop.major, prop.minor);
+	//printf("Maximo de hilos por bloque: %d \n", prop.maxThreadsPerBlock);
+	//printf("Maximo de hilos por SM: %d \n", prop.maxThreadsPerMultiProcessor);
+	//printf("Maximo de memoria global: %zd \n", prop.totalGlobalMem);
+	//printf("Maximo de memoria compartida: %zd \n", prop.sharedMemPerBlock);
+	//printf("Maximo de registros: %d \n", prop.regsPerBlock);
+	//printf("Numero de multiprocesadores: %d \n", prop.multiProcessorCount);
 
-	printf("Características de la tarjeta: \n");
-	printf("Nombre: %s \n", prop.name);
-	printf("Capabilities: %d.%d \n", prop.major, prop.minor);
-	printf("Maximo de hilos por bloque: %d \n", prop.maxThreadsPerBlock);
-	printf("Maximo de hilos por SM: %d \n", prop.maxThreadsPerMultiProcessor);
-	printf("Maximo de memoria global: %zd \n", prop.totalGlobalMem);
-	printf("Maximo de memoria compartida: %zd \n", prop.sharedMemPerBlock);
-	printf("Maximo de registros: %d \n", prop.regsPerBlock);
-	printf("Numero de multiprocesadores: %d \n", prop.multiProcessorCount);
+	//	Tamaño de la matriz en hilos y memoria
+	//printf("Numero de hilos de la matriz: %d \n", n_columnas*n_filas);
+	//printf("Cantidad de memoria utilizada por la matriz: %zd \n", n_columnas*n_filas * sizeof(int));
 
-	//Tamaño de la matriz en hilos y memoria
-	printf("Numero de hilos de la matriz: %d \n", n_columnas*n_filas);
-	printf("Cantidad de memoria utilizada por la matriz: %zd \n", n_columnas*n_filas * sizeof(int));
-
-	if (prop.maxThreadsPerBlock < (n_columnas*n_filas)) {
+	//	El máximo de hilos necesario es igual al numero de elementos de la matriz
+	if (prop.maxThreadsPerBlock < (size)) {
 		printf("No hay suficientes hilos disponibles para calcular la matriz\n");
 		exit(-1);
 	}
-	if (prop.totalGlobalMem < (n_columnas*n_filas * sizeof(int))) {
+
+	//	El tamaño de memoria máximo necesario es equivalente a almacenar dos tableros,
+	//		uno de int y otro de bool
+	if (prop.totalGlobalMem < ((size * sizeof(int)) + (size * sizeof(bool)))) {
 		printf("El tamaño de memoria global es insuficiente para calcular la matriz \n");
 		exit(-1);
 	}
@@ -1815,8 +1820,8 @@ int main(int argc, char** argv) {
 
 			switch (sel) {
 			case 0:
-				imprimeMatriz(punt, v, WidthM, WidthN);
-				getch();
+				//	Antes de ejecutar nada en la GPU, comprobamos que se pueda ejecutar
+				obtenerCaracteristicas(WidthM, WidthN);
 				break;
 			case 1:
 				WidthM = atoi(argv[3]);
@@ -1826,12 +1831,17 @@ int main(int argc, char** argv) {
 				strcpy(MODO, argv[1]);
 				v = (int*) malloc(WidthM * WidthN * sizeof(int));
 
+				//	Antes de ejecutar nada en la GPU, comprobamos que se pueda ejecutar
+				obtenerCaracteristicas(WidthM, WidthN);
+
 				iniciaMatriz(v, WidthM, WidthN, dificultad);
 				break;
 			case 2:
+				printf("Bye Bye!\n");
 				exit(0);
 				break;
 			default:
+				fprintf(stderr, "%cComo has llegado aquí?\n", 168);
 				exit(-1);
 				break;
 			}
@@ -1844,9 +1854,14 @@ int main(int argc, char** argv) {
 			strcpy(MODO, argv[1]);
 			v = (int*)malloc(WidthM*WidthN * sizeof(int));
 
+			//	Antes de ejecutar nada en la GPU, comprobamos que se pueda ejecutar
+			obtenerCaracteristicas(WidthM, WidthN);
+
 			iniciaMatriz(v, WidthM, WidthN, dificultad);
 		}
 	}
+
+
 
 	//Modo Automatico
 	if (strcmp(MODO, "-a") == 0) {
@@ -1864,141 +1879,4 @@ int main(int argc, char** argv) {
 	free((void *) v);
 }
 
-//-------------------------------------------------------------------------------------------------
-
-//--------------------------------- Inicialización Ejemplo de VS2015 --------------------------------------------
-
-/*cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size);
-
-__global__ void addKernel(int *c, const int *a, const int *b)
-{
-	int i = threadIdx.x;
-	c[i] = a[i] + b[i];
-}
-
-int main()
-{
-	int Width = 5;
-	int M[5 * 5];
-
-	for (int i = 0; i < 5; i++) {
-		for (int j = 0; j < 5; j++) {
-			M[i * 5 + j] = rand() % 10;
-		}
-	}
-	for (int i = 0; i < 5; i++) {
-		for (int j = 0; j < 5; j++) {
-			printf("%d", M[i * 5 + j]);
-			printf("\t");
-		}
-		printf("\n");
-	}
-	printf("colorines");
-
-	imprimeMatriz(M, Width, Width);
-
-	const int arraySize = 5;
-	const int a[arraySize] = { 1, 2, 3, 4, 5 };
-	const int b[arraySize] = { 10, 20, 30, 40, 50 };
-	int c[arraySize] = { 0 };
-
-	// Add vectors in parallel.
-	cudaError_t cudaStatus = addWithCuda(c, a, b, arraySize);
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "addWithCuda failed!");
-		return 1;
-	}
-
-	printf("{1,2,3,4,5} + {10,20,30,40,50} ={%d, %d, %d, %d, %d}\n",
-		c[0], c[1], c[2], c[3], c[4]);
-
-	// cudaDeviceReset must be called before exiting in order for profiling and
-	// tracing tools such as Nsight and Visual Profiler to show complete traces.
-	cudaStatus = cudaDeviceReset();
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaDeviceReset failed!");
-		return 1;
-	}
-
-	return 0;
-}
-
-// Helper function for using CUDA to add vectors in parallel.
-cudaError_t addWithCuda(int *c, const int *a, const int *b, unsigned int size)
-{
-	int *dev_a = 0;
-	int *dev_b = 0;
-	int *dev_c = 0;
-	cudaError_t cudaStatus;
-
-	// Choose which GPU to run on, change this on a multi-GPU system.
-	cudaStatus = cudaSetDevice(0);
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
-		goto Error;
-	}
-
-	// Allocate GPU buffers for three vectors (two input, one output)    .
-	cudaStatus = cudaMalloc((void**)&dev_c, size * sizeof(int));
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMalloc failed!");
-		goto Error;
-	}
-
-	cudaStatus = cudaMalloc((void**)&dev_a, size * sizeof(int));
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMalloc failed!");
-		goto Error;
-	}
-
-	cudaStatus = cudaMalloc((void**)&dev_b, size * sizeof(int));
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMalloc failed!");
-		goto Error;
-	}
-
-	// Copy input vectors from host memory to GPU buffers.
-	cudaStatus = cudaMemcpy(dev_a, a, size * sizeof(int), cudaMemcpyHostToDevice);
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMemcpy failed!");
-		goto Error;
-	}
-
-	cudaStatus = cudaMemcpy(dev_b, b, size * sizeof(int), cudaMemcpyHostToDevice);
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMemcpy failed!");
-		goto Error;
-	}
-
-	// Launch a kernel on the GPU with one thread for each element.
-	addKernel << <1, size >> > (dev_c, dev_a, dev_b);
-
-	// Check for any errors launching the kernel
-	cudaStatus = cudaGetLastError();
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "addKernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
-		goto Error;
-	}
-
-	// cudaDeviceSynchronize waits for the kernel to finish, and returns
-	// any errors encountered during the launch.
-	cudaStatus = cudaDeviceSynchronize();
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
-		goto Error;
-	}
-
-	// Copy output vector from GPU buffer to host memory.
-	cudaStatus = cudaMemcpy(c, dev_c, size * sizeof(int), cudaMemcpyDeviceToHost);
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaMemcpy failed!");
-		goto Error;
-	}
-
-Error:
-	cudaFree(dev_c);
-	cudaFree(dev_a);
-	cudaFree(dev_b);
-
-	return cudaStatus;
-}*/
+//---------------------------------------------------------------------------------------------------------------------------------------------------
