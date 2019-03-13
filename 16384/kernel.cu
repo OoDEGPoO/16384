@@ -1,12 +1,12 @@
-﻿
-/* Autores:
+﻿/* Autores:
  *	Daniel López Moreno
  *	Diego-Edgar Gracia Peña
  * Enunciado:
  *	Juego de 16384
  *		Versión en CUDA del Juego 2048
  *
- * Sin Bloques ni Memoria Compartida
+ * Por Bloques
+ * Sin Memoria Compartida
  */
 
 #include "cuda_runtime.h"
@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <Windows.h>
 #include <time.h>
+#include <math.h>
 
 #include <fstream>
 #include <iostream>
@@ -29,10 +30,7 @@ int ALTO[] = { 2, 4 };
 int VIDAS = 5;
 char MODO[] = "-m";
 char FICHERO[] = "16384.sav";
-
-__device__ int TILE_WIDTH_M = 0;
-__device__ int TILE_WIDTH_N = 0;
-
+int TILE_WIDTH = 16;
 
 //	Ejemplo de como quedaría la matriz
 
@@ -490,6 +488,14 @@ void Color(int fondo, int fuente) {
 
 }
 
+//Hace uso de ceil para obtener el tamaño del Grid de Bloques
+int grid_calc(int Width, int Tile_Width) {
+	double x = Width;
+	double y = Tile_Width;
+
+	return (int)(ceil(x / y));//redondea hacia arriba la división
+}
+
 //	Inicializador de la matriz de juego
 //	-	*m Matriz en forma vectorial con la que se trabaja, WidthM y WidthN su tamaño de columna y fila
 //	-	x e y, las coordenadas del elemento que se introducira con el valor indicado
@@ -504,7 +510,7 @@ bool IntroCasilla(int *m, int WidthN, int x, int y, int valor) {
 void obtenerCaracteristicas(int n_columnas, int n_filas) {
 	cudaDeviceProp prop;
 	cudaGetDeviceProperties(&prop, 0);
-	int size = n_columnas*n_filas;//Numero de elementos de los tableros de juego
+	int size = n_columnas*n_filas;//Numero de elementos/hilos de los tableros de juego
 	
 	//printf("Características de la tarjeta: \n");
 	//printf("Nombre: %s \n", prop.name);
@@ -515,14 +521,16 @@ void obtenerCaracteristicas(int n_columnas, int n_filas) {
 	//printf("Maximo de memoria compartida: %zd \n", prop.sharedMemPerBlock);
 	//printf("Maximo de registros: %d \n", prop.regsPerBlock);
 	//printf("Numero de multiprocesadores: %d \n", prop.multiProcessorCount);
+	//printf(" max dimension de grid: %d, %d \n", prop.maxGridSize[0], prop.maxGridSize[1]);
 
 	//	Tamaño de la matriz en hilos y memoria
 	//printf("Numero de hilos de la matriz: %d \n", n_columnas*n_filas);
-	//printf("Cantidad de memoria utilizada por la matriz: %zd \n", n_columnas*n_filas * sizeof(int));
+	//printf("Cantidad de memoria utilizada por la matriz: %zd \n", (size * sizeof(int)) + (size * sizeof(bool)));
+	//getch();
 
 	//	El máximo de hilos necesario es igual al numero de elementos de la matriz
-	if (prop.maxThreadsPerBlock < (size)) {
-		printf("No hay suficientes hilos disponibles para calcular la matriz\n");
+	if ((prop.maxGridSize[0] < grid_calc(n_columnas, TILE_WIDTH)) && (prop.maxGridSize[1] < grid_calc(n_filas, TILE_WIDTH))) {
+		printf("El tamaño de Grid de Bloques necesario es superior al permitido por la tarjeta\n");
 		exit(-1);
 	}
 
@@ -776,7 +784,7 @@ void imprimeMatriz(int *p, int *v, int m, int n) {//( m * n )
 
 			switch (v[i*n + j]) {//	Modifica el color en el que se mostrarán los elementos
 			case 0:
-				Color(BLACK, RED);
+				Color(BLACK, BLACK);
 				break;
 			case 2:
 				Color(WHITE, BLACK);
@@ -968,8 +976,11 @@ cudaError_t accionArriba(int *v, int *p, int WidthM, int WidthN) {
 	cudaError_t cudaStatus;
 	int *dev_v = 0, *dev_p = 0;
 	bool *dev_b = 0;
-	dim3 dimGrid(1, 1);
-	dim3 dimBlock(WidthN, WidthM);
+
+	//X, Y
+	//N, M
+	dim3 dimGrid(grid_calc(WidthN, TILE_WIDTH), grid_calc(WidthM, TILE_WIDTH));
+	dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
 
 	int *h_p = (int*) malloc(WidthM * WidthN * sizeof(int));
 	bool *b = (bool*) malloc(WidthM * WidthN * sizeof(bool));
@@ -1111,8 +1122,11 @@ cudaError_t accionIzquierda(int *v, int *p, int WidthM, int WidthN) {
 	cudaError_t cudaStatus;
 	int *dev_v = 0, *dev_p = 0;
 	bool *dev_b = 0;
-	dim3 dimGrid(1, 1);
-	dim3 dimBlock(WidthN, WidthM);
+
+	//X, Y
+	//N, M
+	dim3 dimGrid(grid_calc(WidthN, TILE_WIDTH), grid_calc(WidthM, TILE_WIDTH));
+	dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
 
 	int *h_p = (int*)malloc(WidthM * WidthN * sizeof(int));
 	bool *b = (bool*)malloc(WidthM * WidthN * sizeof(bool));
@@ -1254,8 +1268,11 @@ cudaError_t accionDerecha(int *v, int *p, int WidthM, int WidthN) {
 	cudaError_t cudaStatus;
 	int *dev_v = 0, *dev_p = 0;
 	bool *dev_b = 0;
-	dim3 dimGrid(1, 1);
-	dim3 dimBlock(WidthN, WidthM);
+
+	//X, Y
+	//N, M
+	dim3 dimGrid(grid_calc(WidthN, TILE_WIDTH), grid_calc(WidthM, TILE_WIDTH));
+	dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
 
 	int *h_p = (int*)malloc(WidthM * WidthN * sizeof(int));
 	bool *b = (bool*)malloc(WidthM * WidthN * sizeof(bool));
@@ -1397,8 +1414,11 @@ cudaError_t accionAbajo(int *v, int *p, int WidthM, int WidthN) {
 	cudaError_t cudaStatus;
 	int *dev_v = 0, *dev_p = 0;
 	bool *dev_b = 0;
-	dim3 dimGrid(1, 1);
-	dim3 dimBlock(WidthN, WidthM);
+
+	//X, Y
+	//N, M
+	dim3 dimGrid(grid_calc(WidthN, TILE_WIDTH), grid_calc(WidthM, TILE_WIDTH));
+	dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
 
 	int *h_p = (int*) malloc(WidthM * WidthN * sizeof(int));
 	bool *b = (bool*) malloc(WidthM * WidthN * sizeof(bool));
@@ -1713,8 +1733,10 @@ void modoManual(int *v, int dificultad, int *puntuacion, int WidthM, int WidthN)
 cudaError_t iniciaMatriz(int *v, int WidthM, int WidthN, int dificultad) {
 	int *dev_v = 0;
 
-	dim3 dimGrid(1, 1);
-	dim3 dimBlock(WidthN, WidthM);
+	//X, Y
+	//N, M
+	dim3 dimGrid(grid_calc(WidthN, TILE_WIDTH), grid_calc(WidthM, TILE_WIDTH));
+	dim3 dimBlock(TILE_WIDTH, TILE_WIDTH);
 
 	cudaError_t cudaStatus;
 
