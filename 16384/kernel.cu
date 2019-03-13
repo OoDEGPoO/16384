@@ -16,6 +16,7 @@
 #include <conio.h>
 #include <stdlib.h>
 #include <Windows.h>
+#include <time.h>
 
 #include <fstream>
 #include <iostream>
@@ -634,16 +635,15 @@ bool cargaDatos(int **v, int *WidthM, int *WidthN, int *puntuacion, int *vidas, 
 				token = strtok(NULL, " ,");
 				i++;
 			}
-			getch();
 
 			free((void *)c);//	liberamos la memoria reservada para el char *
 		}
 		else out = false;
 
 		entrada.close();//Cerramos el archivo
-		if (!out) { fprintf(stderr, "Fallo al cargar los datos de guardado\n"); getch(); }
+		if (!out) { fprintf(stderr, "Fallo al cargar los datos de guardado\n");}
 	}
-	else { fprintf(stderr, "Fallo al intentar abrir el archivo de guardado\n"); getch(); }
+	else { fprintf(stderr, "Fallo al intentar abrir el archivo de guardado\n");}
 	
 	return out;
 }
@@ -990,7 +990,7 @@ cudaError_t accionArriba(int *v, int *p, int WidthM, int WidthN) {
 	int *dev_v = 0, *dev_p = 0;
 	bool *dev_b = 0;
 	dim3 dimGrid(1, 1);
-	dim3 dimBlock(WidthM, WidthN);
+	dim3 dimBlock(WidthN, WidthM);
 
 	int *h_p = (int*) malloc(WidthM * WidthN * sizeof(int));
 	bool *b = (bool*) malloc(WidthM * WidthN * sizeof(bool));
@@ -1133,7 +1133,7 @@ cudaError_t accionIzquierda(int *v, int *p, int WidthM, int WidthN) {
 	int *dev_v = 0, *dev_p = 0;
 	bool *dev_b = 0;
 	dim3 dimGrid(1, 1);
-	dim3 dimBlock(WidthM, WidthN);
+	dim3 dimBlock(WidthN, WidthM);
 
 	int *h_p = (int*)malloc(WidthM * WidthN * sizeof(int));
 	bool *b = (bool*)malloc(WidthM * WidthN * sizeof(bool));
@@ -1276,7 +1276,7 @@ cudaError_t accionDerecha(int *v, int *p, int WidthM, int WidthN) {
 	int *dev_v = 0, *dev_p = 0;
 	bool *dev_b = 0;
 	dim3 dimGrid(1, 1);
-	dim3 dimBlock(WidthM, WidthN);
+	dim3 dimBlock(WidthN, WidthM);
 
 	int *h_p = (int*)malloc(WidthM * WidthN * sizeof(int));
 	bool *b = (bool*)malloc(WidthM * WidthN * sizeof(bool));
@@ -1419,7 +1419,7 @@ cudaError_t accionAbajo(int *v, int *p, int WidthM, int WidthN) {
 	int *dev_v = 0, *dev_p = 0;
 	bool *dev_b = 0;
 	dim3 dimGrid(1, 1);
-	dim3 dimBlock(WidthM, WidthN);
+	dim3 dimBlock(WidthN, WidthM);
 
 	int *h_p = (int*) malloc(WidthM * WidthN * sizeof(int));
 	bool *b = (bool*) malloc(WidthM * WidthN * sizeof(bool));
@@ -1605,7 +1605,6 @@ void modoAutomatico() {
 void modoManual(int *v, int dificultad, int *puntuacion, int WidthM, int WidthN) {
 	int teclaPulsada;
 	int *p = (int*) malloc(sizeof(int));
-	cudaError_t cudaStatus;
 
 	*p = *puntuacion;
 
@@ -1624,25 +1623,25 @@ void modoManual(int *v, int dificultad, int *puntuacion, int WidthM, int WidthN)
 
 			//Arriba
 		case 1:
-			cudaStatus= accionArriba(v, p, WidthM, WidthN);
+			accionArriba(v, p, WidthM, WidthN);
 			introSemilla(v, WidthM, WidthN, dificultad);
 			break;
 
 			//Izquierda
 		case 2:
-			cudaStatus = accionIzquierda(v, p, WidthM, WidthN);
+			accionIzquierda(v, p, WidthM, WidthN);
 			introSemilla(v, WidthM, WidthN, dificultad);
 			break;
 
 			//Derecha
 		case 3:
-			cudaStatus = accionDerecha(v, p, WidthM, WidthN);
+			accionDerecha(v, p, WidthM, WidthN);
 			introSemilla(v, WidthM, WidthN, dificultad);
 			break;
 
 			//Abajo
 		case 4:
-			cudaStatus = accionAbajo(v, p, WidthM, WidthN);
+			accionAbajo(v, p, WidthM, WidthN);
 			introSemilla(v, WidthM, WidthN, dificultad);
 			break;
 
@@ -1664,7 +1663,7 @@ void modoManual(int *v, int dificultad, int *puntuacion, int WidthM, int WidthN)
 	
 
 //Morgan
-FreeMan:
+//FreeMan:
 	free((void *) v);
 	free((void *) p);
 }
@@ -1673,7 +1672,7 @@ cudaError_t iniciaMatriz(int *v, int WidthM, int WidthN, int dificultad) {
 	int *dev_v = 0;
 
 	dim3 dimGrid(1, 1);
-	dim3 dimBlock(WidthM, WidthN);
+	dim3 dimBlock(WidthN, WidthM);
 
 	cudaError_t cudaStatus;
 
@@ -1728,6 +1727,9 @@ FreeIni:
 }
 
 int main(int argc, char** argv) {
+	//Establecemos la semilla del random
+	srand(time(NULL));
+
 	//Mostramos el menú inicial y procedemos a jugar
 	mostrarMenuInicial();
 
@@ -1736,7 +1738,8 @@ int main(int argc, char** argv) {
 	int sel = -1;
 
 	if (argc < 5) { 
-		if (cargaDatos(&v, &WidthM, &WidthN, punt, &vidas, &dificultad, FICHERO)) printf("Datos anteriores Cargados\n");
+		if (cargaDatos(&v, &WidthM, &WidthN, punt, &vidas, &dificultad, FICHERO)) printf("\nDatos anteriores Cargados\n");
+		else { fprintf(stderr, "\nNo se han introducido detalles de partida ni hay un archivo de guardado previo\n"); exit(-1); }
 	} else {
 		if (cargaDatos(&v, &WidthM, &WidthN, punt, &vidas, &dificultad, FICHERO)) {
 
