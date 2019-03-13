@@ -1789,9 +1789,6 @@ cudaError_t iniciaMatriz(int *v, int WidthM, int WidthN, int dificultad) {
 	}
 
 	introSemilla(v, WidthM, WidthN, dificultad);
-	printf("\nNuevo Tablero generado y primera semilla introducida\n");
-	//getch();
-	Sleep(250);
 
 FreeIni:
 	cudaFree((void *) dev_v);
@@ -1873,10 +1870,16 @@ int main(int argc, char** argv) {
 	else if (strcmp(MODO, "-m") == 0) {
 		do {
 			modoManual(v, dificultad, punt, WidthM, WidthN);
+			if (VIDAS > 0) {
+				*punt = 0;
+				v = (int*) malloc(WidthM * WidthN * sizeof(int));
+				iniciaMatriz(v, WidthM, WidthN, dificultad);
+			}
 		} while (VIDAS>0);
 	}
 
 	free((void *) v);
+	free((void *) punt);
 }
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------
