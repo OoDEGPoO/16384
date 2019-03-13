@@ -50,14 +50,12 @@ __device__ int TILE_WIDTH_N = 0;
 //	-	*m Matriz en forma vectorial con la que se trabaja, WidthM y WidthN su tamaño de columna y fila
 __global__ void Inicializador(int *m, int WidthM, int WidthN) {
 	//obtención id del hilo
-	/*int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
-	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
-	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
-	*/
-
-	int id_fil = threadIdx.y, id_col = threadIdx.x;
+	int id_fil = idBy * blockDim.y + idTy;//coordenada y
+	int id_col = idBx * blockDim.x + idTx;//coordenada x
+	
 
 	if (id_fil < WidthM && id_col < WidthN) {//Comprobación de que el hilo esté dentro de los límites
 		m[id_fil*WidthN + id_col] = 0;
@@ -69,14 +67,11 @@ __global__ void Inicializador(int *m, int WidthM, int WidthN) {
 //	-	set el valor booleano a introducir
 __global__ void iniBool(bool *b, int WidthM, int WidthN, bool set) {
 	//obtención id del hilo
-	/*int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
-	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
-	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
-	*/
-
-	int id_fil = threadIdx.y, id_col = threadIdx.x;
+	int id_fil = idBy * blockDim.y + idTy;//coordenada y
+	int id_col = idBx * blockDim.x + idTx;//coordenada x
 
 	if (id_fil < WidthM && id_col < WidthN) {//Comprobación de que el hilo esté dentro de los límites
 
@@ -96,14 +91,11 @@ __global__ void iniBool(bool *b, int WidthM, int WidthN, bool set) {
 //	-	-	La puntuación se recoge en la matriz p
 __global__ void SumaDch(int *m, int *p, int WidthM, int WidthN) {
 	//obtención id del hilo
-	/*int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
-	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
-	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
-	*/
-
-	int id_fil = threadIdx.y, id_col = threadIdx.x;
+	int id_fil = idBy * blockDim.y + idTy;//coordenada y
+	int id_col = idBx * blockDim.x + idTx;//coordenada x
 
 	int ficha, c = 0, aux, i;
 
@@ -150,14 +142,11 @@ __global__ void SumaDch(int *m, int *p, int WidthM, int WidthN) {
 //	-	-	Esta función debe ser llamada hasta que no devuelva ningún cambio en la Matriz de Juego
 __global__ void exMovDch(int *m, bool *b, int WidthM, int WidthN) {
 	//obtención id del hilo
-	/*int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
-	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
-	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
-	*/
-
-	int id_fil = threadIdx.y, id_col = threadIdx.x;
+	int id_fil = idBy * blockDim.y + idTy;//coordenada y
+	int id_col = idBx * blockDim.x + idTx;//coordenada x
 
 	int ficha, id_aux = id_col;
 
@@ -196,14 +185,11 @@ __global__ void exMovDch(int *m, bool *b, int WidthM, int WidthN) {
 //	-	-	La puntuación se recoge en la matriz p
 __global__ void SumaIzq(int *m, int *p, int WidthM, int WidthN) {
 	//obtención id del hilo
-	/*int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
-	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
-	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
-	*/
-
-	int id_fil = threadIdx.y, id_col = threadIdx.x;
+	int id_fil = idBy * blockDim.y + idTy;//coordenada y
+	int id_col = idBx * blockDim.x + idTx;//coordenada x
 
 	int ficha, c = 0, aux, i;
 
@@ -249,14 +235,11 @@ __global__ void SumaIzq(int *m, int *p, int WidthM, int WidthN) {
 //	-	-	Esta función debe ser llamada hasta que no devuelva ningún cambio en la Matriz de Juego
 __global__ void exMovIzq(int *m, bool *b, int WidthM, int WidthN) {
 	//obtención id del hilo
-	/*int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
-	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
-	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
-	*/
-
-	int id_fil = threadIdx.y, id_col = threadIdx.x;
+	int id_fil = idBy * blockDim.y + idTy;//coordenada y
+	int id_col = idBx * blockDim.x + idTx;//coordenada x
 
 	int ficha, id_aux = id_col;
 
@@ -296,14 +279,11 @@ __global__ void exMovIzq(int *m, bool *b, int WidthM, int WidthN) {
 //	-	-	La puntuación se recoge en la matriz p
 __global__ void SumaArb(int *m, int *p, int WidthM, int WidthN) {
 	//obtención id del hilo
-	/*int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
-	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
-	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
-	*/
-
-	int id_fil = threadIdx.y, id_col = threadIdx.x;
+	int id_fil = idBy * blockDim.y + idTy;//coordenada y
+	int id_col = idBx * blockDim.x + idTx;//coordenada x
 
 	int ficha, c = 0, aux, i;
 
@@ -350,14 +330,11 @@ __global__ void SumaArb(int *m, int *p, int WidthM, int WidthN) {
 //	-	-	Esta función debe ser llamada hasta que no devuelva ningún cambio en la Matriz de Juego
 __global__ void exMovArb(int *m, bool *b, int WidthM, int WidthN) {
 	//obtención id del hilo
-	/*int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
-	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
-	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
-	*/
-
-	int id_fil = threadIdx.y, id_col = threadIdx.x;
+	int id_fil = idBy * blockDim.y + idTy;//coordenada y
+	int id_col = idBx * blockDim.x + idTx;//coordenada x
 
 	int ficha, id_aux = id_fil;
 
@@ -396,14 +373,11 @@ __global__ void exMovArb(int *m, bool *b, int WidthM, int WidthN) {
 //	-	-	La puntuación se recoge en la matriz p
 __global__ void SumaAbj(int *m, int *p, int WidthM, int WidthN) {
 	//obtención id del hilo
-	/*int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
-	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
-	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
-	*/
-
-	int id_fil = threadIdx.y, id_col = threadIdx.x;
+	int id_fil = idBy * blockDim.y + idTy;//coordenada y
+	int id_col = idBx * blockDim.x + idTx;//coordenada x
 
 	int ficha, c = 0, aux, i;
 
@@ -450,14 +424,11 @@ __global__ void SumaAbj(int *m, int *p, int WidthM, int WidthN) {
 //	-	-	Esta función debe ser llamada hasta que no devuelva ningún cambio en la Matriz de Juego
 __global__ void exMovAbj(int *m, bool *b, int WidthM, int WidthN) {
 	//obtención id del hilo
-	/*int idBx = blockIdx.x;	int idBy = blockIdx.y;
+	int idBx = blockIdx.x;	int idBy = blockIdx.y;
 	int idTx = threadIdx.x;	int idTy = threadIdx.y;
 
-	int id_fil = idBy * TILE_WIDTH + idTy;//coordenada y
-	int id_col = idBx * TILE_WIDTH + idTx;//coordenada x
-	*/
-
-	int id_fil = threadIdx.y, id_col = threadIdx.x;
+	int id_fil = idBy * blockDim.y + idTy;//coordenada y
+	int id_col = idBx * blockDim.x + idTx;//coordenada x
 
 	int ficha, id_aux = id_fil;
 
@@ -721,8 +692,7 @@ void mostrarMenuInicial() {
 	printf("| '--------------' || '--------------' || '--------------' || '--------------' || '--------------' |\n");
 	printf("'----------------'  '----------------'  '----------------'  '----------------'  '----------------' \n\n");
 	printf("                       Created by: Diego-Edgar Gracia & Daniel Lopez                                \n\n");
-	printf("                                                                                                      \n\n");
-
+	printf("                               %cAhora con Bloques de Hilos!                                           \n\n", 173);
 }
 
 //	Mostramos menu de carga de datos
@@ -1870,9 +1840,9 @@ int main(int argc, char** argv) {
 	else if (strcmp(MODO, "-m") == 0) {
 		do {
 			modoManual(v, dificultad, punt, WidthM, WidthN);
-			if (VIDAS > 0) {
+			if ((VIDAS > 0)) {
 				*punt = 0;
-				v = (int*) malloc(WidthM * WidthN * sizeof(int));
+				v = (int*)malloc(WidthM*WidthN * sizeof(int));
 				iniciaMatriz(v, WidthM, WidthN, dificultad);
 			}
 		} while (VIDAS>0);
