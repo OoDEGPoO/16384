@@ -560,18 +560,19 @@ void obtenerCaracteristicas(int n_columnas, int n_filas) {
 //	Carga los datos del Juego Guardados anteriormente
 //	-	v Matriz de Juego, WidthM y WidthN el tamaó de la matriz de juego,
 //	-	puntuacion de juego acumulada y s el nombre del archivo de guardado
-bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, int *vidas, int *dificultad, char *s) {
+bool cargaDatos(int **v, int *WidthM, int *WidthN, int *puntuacion, int *vidas, int *dificultad, char *s) {
 	string linea; //buffer de entrada
 	char *c; //cadena de char para transformación
 	char *token; //tokens de la matriz
-	int k; //contador de acceso a la matriz
+	int *m; //Matriz de entrada
+	int i, k; //contador de acceso a la matriz y longitud de esta
 	ifstream entrada(s, ios::binary); //Fichero de entrada
 	bool out = entrada.is_open(); //Si ha logrado abrir el archivo y no ha resultado erroneo la carga de datos
 
 	if (out) {
 		//	Carga del numero de filas de la matriz de juego
 		if (getline(entrada, linea, ';')) {
-			c = (char*)malloc(linea.size() * sizeof(char));
+			c = (char*)malloc((linea.size()+1) * sizeof(char));
 			strcpy(c, linea.c_str());
 			*WidthM = atoi(c);
 			free((void *)c);
@@ -579,7 +580,7 @@ bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, int *vidas, i
 		else out = false;
 		//	Carga del numero de columnas de la matriz de juego
 		if (getline(entrada, linea, ';')) {
-			c = (char*)malloc(linea.size() * sizeof(char));
+			c = (char*)malloc((linea.size() + 1) * sizeof(char));
 			strcpy(c, linea.c_str());
 			*WidthN = atoi(c);
 			free((void *)c);
@@ -587,7 +588,7 @@ bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, int *vidas, i
 		else out = false;
 		//	Carga de la puntuación
 		if (getline(entrada, linea, ';')) {
-			c = (char*)malloc(linea.size() * sizeof(char));
+			c = (char*)malloc((linea.size() + 1) * sizeof(char));
 			strcpy(c, linea.c_str());
 			*puntuacion = atoi(c);
 			free((void *)c);
@@ -595,7 +596,7 @@ bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, int *vidas, i
 		else out = false;
 		//	Carga el numero de vidas
 		if (getline(entrada, linea, ';')) {
-			c = (char*)malloc(linea.size() * sizeof(char));
+			c = (char*)malloc((linea.size() + 1) * sizeof(char));
 			strcpy(c, linea.c_str());
 			*vidas = atoi(c);
 			free((void *)c);
@@ -603,7 +604,7 @@ bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, int *vidas, i
 		else out = false;
 		//	Carga la dificultad
 		if (getline(entrada, linea, ';')) {
-			c = (char*)malloc(linea.size() * sizeof(char));
+			c = (char*)malloc((linea.size() + 1) * sizeof(char));
 			strcpy(c, linea.c_str());
 			*dificultad = atoi(c);
 			free((void *)c);
@@ -611,7 +612,7 @@ bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, int *vidas, i
 		else out = false;
 		//	Carga el modo
 		if (getline(entrada, linea, ';')) {
-			c = (char*)malloc(linea.size() * sizeof(char));
+			c = (char*)malloc((linea.size() + 1) * sizeof(char));
 			strcpy(c, linea.c_str());
 			MODO[0] = c[0];
 			MODO[1] = c[1];
@@ -620,26 +621,30 @@ bool cargaDatos(int *v, int *WidthM, int *WidthN, int *puntuacion, int *vidas, i
 		else out = false;
 		//	Carga de la matriz de juego
 		if (getline(entrada, linea, ';')) {//	Toma hasta el ';'
-			c = (char*)malloc(linea.size() * sizeof(char));
+			c = (char*)malloc((linea.size() + 1) * sizeof(char));
 			strcpy(c, linea.c_str());//	Pasamos a char para trabajar con ello
 			token = strtok(c, " ,");//	Extraemos los numeros con Tokens
 			k = *WidthM * *WidthN;	//	longitud de v
-			v = (int *)malloc(k * sizeof(int));
+			m = (int *)malloc(k * sizeof(int));
+			*v = m;
+			i = 0;
 
 			while (token != NULL) {
-				v[k] = atoi(token);//	Introducimos el cada numero en la matriz obteniendo Tokens
+				m[i] = atoi(token);//	Introducimos el cada numero en la matriz obteniendo Tokens
 				token = strtok(NULL, " ,");
+				i++;
 			}
+			getch();
 
 			free((void *)c);//	liberamos la memoria reservada para el char *
 		}
 		else out = false;
 
 		entrada.close();//Cerramos el archivo
-		if (!out) fprintf(stderr, "Fallo al cargar los datos de guardado\n");
+		if (!out) { fprintf(stderr, "Fallo al cargar los datos de guardado\n"); getch(); }
 	}
-	else fprintf(stderr, "Fallo al intentar abrir el archivo de guardado\n");
-
+	else { fprintf(stderr, "Fallo al intentar abrir el archivo de guardado\n"); getch(); }
+	
 	return out;
 }
 
@@ -711,7 +716,7 @@ void mostrarMenuInicial() {
 	printf("| '--------------' || '--------------' || '--------------' || '--------------' || '--------------' |\n");
 	printf("'----------------'  '----------------'  '----------------'  '----------------'  '----------------' \n\n");
 	printf("                       Created by: Diego-Edgar Gracia & Daniel Lopez                                \n\n");
-	printf("                                                                                                      ");
+	printf("                                                                                                      \n\n");
 
 }
 
@@ -719,12 +724,11 @@ void mostrarMenuInicial() {
 int menuCargaDatos() {
 	bool flag = true;
 	int sel = 2;//	0 Cargar	/	1 Nueva	/	2 Salir
-	int tecla;
 
 	do {
 		system("cls");
 		Color(WHITE, BLACK);
-		printf("\tSe ha encontrado una partida anterior\n¿Deseas usar cargar esa partida?\n\n");
+		printf("Se ha encontrado una partida anterior\n%cDeseas cargar esa partida?          \n\n",168);
 		switch (sel)
 		{
 		case 0: Color(LCYAN, BLACK); printf("- Cargar Partida\n");
@@ -735,7 +739,7 @@ int menuCargaDatos() {
 			Color(BLACK, WHITE); printf("- Salir\n");
 			break;
 		case 2: Color(BLACK, WHITE); printf("- Cargar Partida\n- Nueva Partida\n");
-			Color(LCYAN, BLACK); printf("- Salir\n");
+			Color(LCYAN, BLACK); printf("- Salir\n"); Color(BLACK, WHITE);
 			break;
 		default:
 			break;
@@ -780,9 +784,9 @@ void imprimeMatriz(int *p, int *v, int m, int n) {//( m * n )
 	printf("\n");
 	system("cls");
 	Color(WHITE, BLACK);
-	printf("\t-WASD y Flechas del Teclado para mover las fichas\n\t\-P para Pausa");
+	printf("-WASD y Flechas del Teclado para mover las fichas\n-P para Pausa                                    \n");
 	Color(BLACK, WHITE);
-	printf("\nPuntuacion: %d \n", *p);
+	printf("Puntuacion: %d \n", *p);
 	for (i = 0; i < m; i++) {//recorremos eje m
 		for (j = 0; j < n; j++) {//recorremos eje n
 			ws = WS;
@@ -1603,13 +1607,13 @@ void modoManual(int *v, int dificultad, int *puntuacion, int WidthM, int WidthN)
 	int *p = (int*) malloc(sizeof(int));
 	cudaError_t cudaStatus;
 
-	p = puntuacion;
+	*p = *puntuacion;
 
 	do {
 
 		imprimeMatriz(p, v, WidthM, WidthN);
 
-		teclaPulsada = reconocerTeclado();
+		do { teclaPulsada = reconocerTeclado(); } while (teclaPulsada>4);
 		//printf("%d", teclaPulsada);
 		switch (teclaPulsada) {
 			//Menu de Pausa
@@ -1661,8 +1665,8 @@ void modoManual(int *v, int dificultad, int *puntuacion, int WidthM, int WidthN)
 
 //Morgan
 FreeMan:
-	free(v);
-	free(p);
+	free((void *) v);
+	free((void *) p);
 }
 
 cudaError_t iniciaMatriz(int *v, int WidthM, int WidthN, int dificultad) {
@@ -1714,6 +1718,8 @@ cudaError_t iniciaMatriz(int *v, int WidthM, int WidthN, int dificultad) {
 	}
 
 	introSemilla(v, WidthM, WidthN, dificultad);
+	printf("Nuevo Tablero generado y primera semilla introducida");
+	getch();
 
 FreeIni:
 	cudaFree((void *) dev_v);
@@ -1725,26 +1731,30 @@ int main(int argc, char** argv) {
 	//Mostramos el menú inicial y procedemos a jugar
 	mostrarMenuInicial();
 
-	int *v = 0, WidthM, WidthN, punt, vidas, dificultad;
+	int *v = 0, WidthM, WidthN, *punt = (int *) malloc(sizeof(int)), vidas, dificultad;
+	*punt = 0;
+	int sel = -1;
 
-	if (argc < 5) {
-		if (cargaDatos(v, &WidthM, &WidthN, &punt, &vidas, &dificultad, FICHERO)) printf("Datos anteriores Cargados\n");
+	if (argc < 5) { 
+		if (cargaDatos(&v, &WidthM, &WidthN, punt, &vidas, &dificultad, FICHERO)) printf("Datos anteriores Cargados\n");
 	} else {
-		printf("antonio");
-		if (cargaDatos(v, &WidthM, &WidthN, &punt, &vidas, &dificultad, FICHERO)) {
-			printf("hay datos\n");
-			switch (menuCargaDatos()) {
+		if (cargaDatos(&v, &WidthM, &WidthN, punt, &vidas, &dificultad, FICHERO)) {
+
+			sel = menuCargaDatos();
+			getch();
+
+			switch (sel) {
 			case 0:
-				printf("cargo");
+				imprimeMatriz(punt, v, WidthM, WidthN);
+				getch();
 				break;
 			case 1:
-				printf("nueva");
 				WidthM = atoi(argv[3]);
 				WidthN = atoi(argv[4]);
 				VIDAS = 5;
 				dificultad = atoi(argv[2]);
 				strcpy(MODO, argv[1]);
-				v = (int*)malloc(WidthM*WidthN * sizeof(int));
+				v = (int*) malloc(WidthM * WidthN * sizeof(int));
 
 				iniciaMatriz(v, WidthM, WidthN, dificultad);
 				break;
@@ -1757,7 +1767,6 @@ int main(int argc, char** argv) {
 			}
 		}
 		else {
-			printf("nueva");
 			WidthM = atoi(argv[3]);
 			WidthN = atoi(argv[4]);
 			VIDAS = 5;
@@ -1769,11 +1778,6 @@ int main(int argc, char** argv) {
 		}
 	}
 
-		printf("\n\n%d, %d, %d, %d, %s\n", WidthM, WidthN, dificultad, VIDAS, MODO);
-		getch();
-
-		imprimeMatriz(&punt, v, WidthM, WidthN);
-
 	//Modo Automatico
 	if (strcmp(MODO, "-a") == 0) {
 
@@ -1783,13 +1787,12 @@ int main(int argc, char** argv) {
 	//Modo Manual
 	else if (strcmp(MODO, "-m") == 0) {
 		do {
-			modoManual(v, dificultad, &punt, WidthM, WidthN);
+			modoManual(v, dificultad, punt, WidthM, WidthN);
 		} while (VIDAS>0);
 	}
 
 	free((void *) v);
 }
-
 
 //-------------------------------------------------------------------------------------------------
 
@@ -1929,4 +1932,3 @@ Error:
 
 	return cudaStatus;
 }*/
-
