@@ -863,16 +863,20 @@ void imprimeMatriz(int *p, int *v, int m, int n) {//( m * n )
 		
 	}
 	printf("\n");
-	Color(WHITE, BLACK);
-	printf("VIDAS:              ");
-	Color(BLACK, WHITE);
-	printf("\n");
-	Color(WHITE, RED);
-	for (int i = 0; i < VIDAS; i++) {
-		printf(" <3 ");
+
+	if (VIDAS > 0) {
+		Color(WHITE, BLACK);
+		printf("VIDAS:              ");
+		Color(BLACK, WHITE);
+		printf("\n");
+		Color(WHITE, RED);
+		for (int i = 0; i < VIDAS; i++) {
+			printf(" <3 ");
+		}
+		Color(WHITE, BLACK);
+		printf("\n");
 	}
-	Color(WHITE, BLACK);
-	printf("\n");
+	
 
 	Color(BLACK, WHITE);
 }
@@ -1598,8 +1602,71 @@ void accionPausa(int *v, int WidthM, int WidthN, int puntuacion, int dificultad)
 	} while (flag);
 }
 
-void modoAutomatico() {
-	printf("Modo automatico");
+//	IA de juego automático por busqueda de la mejor puntuación en cada iteración
+void modoAutomatico(int **v, int dificultad, int *puntuacion, int WidthM, int WidthN) {
+	size_t sizeV = WidthM * WidthN * sizeof(int);
+
+	//Puntuaciones
+	int *p = (int*)malloc(sizeof(int));
+	int *p1 = (int*)malloc(sizeof(int));
+	int *p2 = (int*)malloc(sizeof(int));
+	int *p3 = (int*)malloc(sizeof(int));
+	int *p4 = (int*)malloc(sizeof(int));
+
+	*p = *puntuacion;
+	*p1 = *p;
+	*p2 = *p;
+	*p3 = *p;
+	*p4 = *p;
+
+	//Tableros de las distintas opciones de juego
+	int *v1 = (int *) malloc(sizeV);
+	int *v2 = (int *) malloc(sizeV);
+	int *v3 = (int *) malloc(sizeV);
+	int *v4 = (int *) malloc(sizeV);
+
+	imprimeMatriz(p, *v, WidthM, WidthN);
+	//getch();
+	for (int i = 5; i > 0; i--) { printf("%d\n", i); Sleep(1000); }
+
+	do {//Juega
+
+		//Copia el tablero actual
+		memcpy(v1, *v, sizeV);
+		memcpy(v2, *v, sizeV);
+		memcpy(v3, *v, sizeV);
+		memcpy(v4, *v, sizeV);
+		//Ejecuta los movimientos en los 4 tableros alternos
+		accionArriba(v1, p1, WidthM, WidthN);
+		accionIzquierda(v2, p2, WidthM, WidthN);
+		accionDerecha(v3, p3, WidthM, WidthN);
+		accionAbajo(v4, p4, WidthM, WidthN);
+		//Busca cual da la mejor puntuación
+		memcpy(*v, v1, sizeV); *p = *p1;
+		if (*p < *p2) { *p = *p2; memcpy(*v, v2, sizeV); }
+		if (*p < *p3) { *p = *p3; memcpy(*v, v3, sizeV); }
+		if (*p < *p4) { *p = *p4; memcpy(*v, v4, sizeV); }
+		//lo muestra
+		imprimeMatriz(p, *v, WidthM, WidthN);
+		//getch();
+		Sleep(500);
+		//Introduce nuevas casillas
+		introSemilla(*v, WidthM, WidthN, dificultad);
+		imprimeMatriz(p, *v, WidthM, WidthN);
+		//getch();
+		Sleep(500);
+		//Y vuelta a empezar hasta que no pueda continuar
+	} while (checkLleno(*v, WidthM, WidthN));
+
+	free((void *) p);
+	free((void *) p1);
+	free((void *) p2);
+	free((void *) p3);
+	free((void *) p4);
+	free((void *) v1);
+	free((void *) v2);
+	free((void *) v3);
+	free((void *) v4);
 }
 
 void modoManual(int *v, int dificultad, int *puntuacion, int WidthM, int WidthN) {
@@ -1717,8 +1784,9 @@ cudaError_t iniciaMatriz(int *v, int WidthM, int WidthN, int dificultad) {
 	}
 
 	introSemilla(v, WidthM, WidthN, dificultad);
-	printf("Nuevo Tablero generado y primera semilla introducida");
-	getch();
+	printf("\nNuevo Tablero generado y primera semilla introducida\n");
+	//getch();
+	Sleep(250);
 
 FreeIni:
 	cudaFree((void *) dev_v);
@@ -1744,7 +1812,6 @@ int main(int argc, char** argv) {
 		if (cargaDatos(&v, &WidthM, &WidthN, punt, &vidas, &dificultad, FICHERO)) {
 
 			sel = menuCargaDatos();
-			getch();
 
 			switch (sel) {
 			case 0:
@@ -1783,8 +1850,8 @@ int main(int argc, char** argv) {
 
 	//Modo Automatico
 	if (strcmp(MODO, "-a") == 0) {
-
-		modoAutomatico();
+		VIDAS = 0;//La IA no necesita VIDAS (es así de chulita)
+		modoAutomatico(&v, dificultad, punt, WidthM, WidthN);
 	}
 
 	//Modo Manual
