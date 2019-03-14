@@ -30,7 +30,7 @@ int ALTO[] = { 2, 4 };
 int VIDAS = 5;
 char MODO[] = "-m";
 char FICHERO[] = "16384.sav";
-int TILE_WIDTH = 16;
+const int TILE_WIDTH = 16;
 
 //	Ejemplo de como quedaría la matriz
 
@@ -46,6 +46,7 @@ int TILE_WIDTH = 16;
 
 //	Inicializador de la matriz de juego
 //	-	*m Matriz en forma vectorial con la que se trabaja, WidthM y WidthN su tamaño de columna y fila
+//	-	-	(No tiene mucho sentido hacerlo con memoria compartida	¯\_(ツ)_/¯)
 __global__ void Inicializador(int *m, int WidthM, int WidthN) {
 	//obtención id del hilo
 	int idBx = blockIdx.x;	int idBy = blockIdx.y;
@@ -63,6 +64,7 @@ __global__ void Inicializador(int *m, int WidthM, int WidthN) {
 //	Inicializador de matrices booleanas
 //	-	*b Matriz vectorial de booleanos, WidthM y WidthN dimensiones de columna y fila
 //	-	set el valor booleano a introducir
+//	-	-	(Tampoco parece tener sentido hacerlo con memoria compartida)
 __global__ void iniBool(bool *b, int WidthM, int WidthN, bool set) {
 	//obtención id del hilo
 	int idBx = blockIdx.x;	int idBy = blockIdx.y;
@@ -80,6 +82,7 @@ __global__ void iniBool(bool *b, int WidthM, int WidthN, bool set) {
 
 //---------------------- Dch -------------------------
 
+//-----------------------A modificar
 //	Cada hilo busca una pareja para su elemento correspondiente, y si es viable, realiza la suma
 //	-	Cada hilo recorre la matriz hacia la derecha buscando fichas como la suya viables para la suma
 //	-	para ello, cuenta cuantas coincidencias hay, si el numero es congruente con 0 mod 2,
@@ -95,7 +98,24 @@ __global__ void SumaDch(int *m, int *p, int WidthM, int WidthN) {
 	int id_fil = idBy * blockDim.y + idTy;//coordenada y
 	int id_col = idBx * blockDim.x + idTx;//coordenada x
 
-	int ficha, c = 0, aux, i;
+	int ficha, c = 0, aux, i, k;
+	__shared__ int mSub[TILE_WIDTH][TILE_WIDTH];
+
+	int inicio = blockDim.y * idBy * WidthN;//Inicio de la tesela
+	int fin = inicio + WidthN - 1;
+	int lateral = blockDim.x;
+
+	//límite inferior para movimientos laterales
+	if (id_fil < WidthM) {
+		//si está fuera de la matriz lateralmente, no buscará, pero si cargará
+		if (id_col < WidthM) ficha = m[id_fil*WidthN + id_col];
+
+		//Recorremos las distintas teselas en las que dividimos la matriz
+		for (i = inicio; i <= fin; i += lateral) {
+			
+		}
+	}
+	
 
 	//filtro de hilos
 	if (id_fil < WidthM && id_col < WidthN) {
@@ -534,6 +554,7 @@ void obtenerCaracteristicas(int n_columnas, int n_filas) {
 		exit(-1);
 	}
 
+	//----------------- Revisar mem compartida ---> sharedMemPerblock
 	//	El tamaño de memoria máximo necesario es equivalente a almacenar dos tableros,
 	//		uno de int y otro de bool
 	if (prop.totalGlobalMem < ((size * sizeof(int)) + (size * sizeof(bool)))) {
