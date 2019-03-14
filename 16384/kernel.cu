@@ -82,7 +82,6 @@ __global__ void iniBool(bool *b, int WidthM, int WidthN, bool set) {
 
 //---------------------- Dch -------------------------
 
-//-----------------------A modificar
 //	Cada hilo busca una pareja para su elemento correspondiente, y si es viable, realiza la suma
 //	-	Cada hilo recorre la matriz hacia la derecha buscando fichas como la suya viables para la suma
 //	-	para ello, cuenta cuantas coincidencias hay, si el numero es congruente con 0 mod 2,
@@ -98,58 +97,55 @@ __global__ void SumaDch(int *m, int *p, int WidthM, int WidthN) {
 	int id_fil = idBy * blockDim.y + idTy;//coordenada y
 	int id_col = idBx * blockDim.x + idTx;//coordenada x
 
-	int ficha, c = 0, aux, i, k;
+	int ficha, c = 0, i, j, k = -1;
+	bool flag = true;
 	__shared__ int mSub[TILE_WIDTH][TILE_WIDTH];
 
 	int inicio = blockDim.y * idBy * WidthN;//Inicio de la tesela
-	int fin = inicio + WidthN - 1;
-	int lateral = blockDim.x;
+	int fin = inicio + WidthN - 1;// final del for de teselas
+	int lateral = blockDim.x;// longitud lateral teselas
 
 	//límite inferior para movimientos laterales
 	if (id_fil < WidthM) {
 		//si está fuera de la matriz lateralmente, no buscará, pero si cargará
-		if (id_col < WidthM) ficha = m[id_fil*WidthN + id_col];
+		if (id_col < WidthN) ficha = m[id_fil*WidthN + id_col];
 
 		//Recorremos las distintas teselas en las que dividimos la matriz
 		for (i = inicio; i <= fin; i += lateral) {
-			
-		}
-	}
-	
+			if ((i + idTx) < (inicio + WidthN))
+				mSub[idTy][idTx] = m[i + idTy * WidthN + idTx];
+			else
+				mSub[idTy][idTx] = -1;
 
-	//filtro de hilos
-	if (id_fil < WidthM && id_col < WidthN) {
-		ficha = m[id_fil*WidthN + id_col];
+			__syncthreads();
 
-		//si la ficha está vacia, el hilo no buscará
-		if (ficha != 0) {
-			//Se realiza la busqueda hacia la dch
-			for (i = id_col + 1; i < WidthN; i++) {
-				aux = m[id_fil*WidthN + i];
-
-				if (aux == ficha) c++;//contamos las coincidencias
-				else if (aux != 0) i = WidthN;//No podemos emparejar saltandonos fichas
-			}
-
-			//	Si el numero de coincidencias es congruente con 1 mod 2
-			//	se busca la primera coincidencia, se multiplica por 2 y se borra la ficha 
-			//	Si fuese congruente con 0 mod 2, no debe acceder al for
-			if ((c % 2) == 0) p[id_fil*WidthN + id_col] = 0;//	Si no opera, puntuación 0
-			for (i = id_col + 1; i < WidthN && (c % 2) == 1; i++) {
-				aux = m[id_fil*WidthN + i];
-				if (aux == ficha) {
-					m[id_fil*WidthN + i] = ficha * 2;
-					m[id_fil*WidthN + id_col] = 0;
-					p[id_fil*WidthN + id_col] = ficha * 2;//	Grabamos la puntuación obtenido con la suma
-					c--;//Para que el bucle for termine
+			//Recorremos el eje X de la subMatriz (lateralmente) buscando equivalentes válidos
+			//	Los hilos que estén fuera del tablero, no buscan
+			for (j = 0; (j < blockDim.x) && (id_col < WidthN) && (ficha != 0) && flag; j++) {
+				//En busqueda lateral dch solo nos interesan los que estén a la derecha del hilo
+				if ((idBx * blockDim.x + idTx) < (i * blockDim.x + j)) {
+					if (mSub[idTy][j] == ficha) {
+						if (k == -1) k = i + idTy * WidthN + j;
+						c++;
+					}
+					else flag = (mSub[idTy][j] == 0);
 				}
+			}
 
-				//	(Aclaración) Si estamos entrando en este bucle for,
-				//		significa que se ha encontrado una pareja viable anteriormente
-				//		por lo que no se filtra si se opera con una ficha no válida
+			__syncthreads();
+		}
+
+		if (id_col < WidthN) {
+			if ((ficha != 0) && (c % 2 == 1)) {
+				m[k] = ficha * 2;
+				m[id_fil*WidthN + id_col] = 0;
+				p[id_fil*WidthN + id_col] = ficha * 2;
+			}
+			else {
+				m[id_fil*WidthN + id_col] = ficha;
+				p[id_fil*WidthN + id_col] = 0;
 			}
 		}
-		else p[id_fil*WidthN + id_col] = 0;
 	}
 }
 
